@@ -13,6 +13,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod host;
 pub(crate) mod sua;
 
+pub use host::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
 pub use sua::{DoDaiVanBan, KeHoachSua};
