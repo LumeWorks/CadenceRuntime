@@ -179,12 +179,16 @@ fn cursor_di_chuyen_phat_hien_qua_surrounding_lech() {
 //
 // Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ
 // để verify. Khi None, runtime không được đoán text đã commit có còn ở đúng
-// vị trí không. Chen (pure insert) vẫn an toàn. ThayThe (có delete) bị chặn.
+// vị trí không. Khi runtime đang sở hữu suffix (da_hien_thi không rỗng), MỌI
+// action tiếp tục composition (cả Chen lẫn ThayThe) đều phải verify — Chen chèn
+// vào vị trí cursor, nếu cursor lệch thì chèn sai vị trí rồi đầu độc state.
+// Chỉ phím đầu tiên vào composition mới (da_hien_thi rỗng) là Chen thuần an
+// toàn không cần surrounding.
 
 #[test]
-fn surrounding_none_chen_duoc_phep_khong_pha_huy() {
-    // surrounding=None + action chỉ insert (Chen) → không phá hủy.
-    // "ab" trong Cadence không có Telex transformation → cả hai đều Chen.
+fn surrounding_none_chen_dau_tien_duoc_phep() {
+    // surrounding=None + da_hien_thi rỗng (composition mới) + Chen → cho phép.
+    // Phím đầu tiên vào composition mới an toàn vì không sở hữu suffix cũ.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
@@ -194,18 +198,68 @@ fn surrounding_none_chen_duoc_phep_khong_pha_huy() {
     assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
     assert_eq!(host.van_ban, "a");
 
-    // 'b' → Cadence giữ "ab" → la_chen → Chen (pure insert, an toàn với None).
-    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('b'));
-    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
-    assert_eq!(host.van_ban, "ab");
-
-    // Không có ThayThe trong history (tất cả Chen).
+    // Không có ThayThe trong history.
     for hd in &host.lich_su_hanh_dong {
         assert!(
             matches!(hd, HanhDong::Chen(_)),
             "surrounding=None chi duoc Chen, duoc {hd:?}"
         );
     }
+}
+
+#[test]
+fn surrounding_none_chen_khi_dang_so_huu_suffix_bi_chan() {
+    // surrounding=None + da_hien_thi không rỗng + Chen → bị chặn.
+    // Runtime đang sở hữu suffix "a"; phím kế tiếp phải verify. None → không
+    // verify → relinquish + ChuyenTiep. Không chèn sai vị trí, không đầu độc
+    // state cho phím sau.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    host.cung_cap_surrounding = false;
+
+    // 'a' → Chen (da_hien_thi rỗng).
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+    assert_eq!(host.van_ban, "a");
+    assert_eq!(phien.da_hien_thi(), "a");
+
+    // 'b' → Cadence "ab" (la_chen), nhưng da_hien_thi = "a" (không rỗng) +
+    // surrounding=None → relinquish + ChuyenTiep.
+    let so_action_truoc = host.lich_su_hanh_dong.len();
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('b'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    // Không gửi action mới (relinquish + forward, không gọi thuc_thi).
+    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
+    // Văn bản "a" không bị thay đổi.
+    assert_eq!(host.van_ban, "a");
+    // Runtime relinquish: da_hien_thi rỗng, không sở hữu suffix cũ.
+    assert_eq!(phien.da_hien_thi(), "");
+    assert!(phien.dang_rong());
+}
+
+#[test]
+fn surrounding_lech_chen_khi_dang_so_huu_suffix_bi_chan() {
+    // da_hien_thi không rỗng + surrounding mismatch + Chen → relinquish +
+    // ChuyenTiep. Không chèn "z" vào "abc" (sai vị trí).
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "tie");
+    assert_eq!(phien.da_hien_thi(), "tie");
+    assert_eq!(host.van_ban, "tie");
+
+    // App sửa text ngoài runtime: "tie" → "abc", cursor ở cuối.
+    host.van_ban = "abc".to_string();
+    host.vi_tri_con_tro = 3;
+
+    // Gõ 'z' → Cadence "tiez" (la_chen: chèn "z"). Nhưng surrounding "abc"
+    // không kết thúc bằng "tie" → relinquish + ChuyenTiep.
+    let so_action_truoc = host.lich_su_hanh_dong.len();
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('z'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
+    // Văn bản "abc" không bị chèn "z" vào.
+    assert_eq!(host.van_ban, "abc");
+    // Runtime relinquish: không sở hữu suffix cũ.
+    assert_eq!(phien.da_hien_thi(), "");
 }
 
 #[test]

@@ -42,8 +42,9 @@ PhienNhap::xu_ly(host)
   │     └─ van_ban_truoc_con_tro: Option<String>
   │
   ├─ verify focus / context / surrounding
-  │     lệch hoặc None+ThayThe → relinquish + ChuyenTiep
-  │     Chen (pure insert) luôn an toàn, không cần verify
+  │     da_hien_thi rỗng + Chen → cho phép (composition mới)
+  │     da_hien_thi không rỗng + None/mismatch → relinquish + ChuyenTiep
+  │     da_hien_thi không rỗng + khớp → cho phép Chen và ThayThe
   │
   ├─ PhienCadence::them_ky_tu / xoa_lui  (boundary, không lộ kiểu Cadence)
   │     ↓
@@ -139,32 +140,38 @@ cả trường hợp `KhongChac` có áp dụng lẫn không áp dụng.
 
 ## 7. Verify-before-mutate
 
-Trước khi gửi `ThayThe` (destructive replace có xóa text đã commit), `xu_ly`
-kiểm tra:
+Khi runtime đang sở hữu suffix (`da_hien_thi` không rỗng), `xu_ly` kiểm tra
+trước khi gửi **bất kỳ** action nào (cả `Chen` lẫn `ThayThe`):
 
 1. `boi_canh.context_id == self.context_id` - còn đúng context.
 2. `boi_canh.dang_co_focus` - context còn focus.
 3. `boi_canh.the_he_focus == self.the_he_focus` - focus generation chưa đổi.
-4. `KeHoachSua` có liên quan delete (không phải `la_chen`): `boi_canh.van_ban_truoc_con_tro`
-   phải là `Some` và kết thúc bằng `da_hien_thi` - surrounding text khớp.
+4. `boi_canh.van_ban_truoc_con_tro` phải là `Some` và kết thúc bằng
+   `da_hien_thi` - surrounding text khớp (cursor ngay sau composition).
 
 Bất kỳ điều kiện nào sai:
 
-* Không tạo delete, không xóa thử, không đoán số ký tự.
+* Không tạo delete, không chèn, không xóa thử, không đoán số ký tự.
 * `relinquish()`: đặt lại Cadence, xóa `da_hien_thi`, xóa `lich_su`, về `Rong`.
 * Trả `ChuyenTiep` (chuyển tiếp sự kiện gốc).
 * Sai lệch của một context không ảnh hưởng context khác (mỗi `PhienNhap` riêng).
 
+Lý do verify cả `Chen`: khi runtime đang sở hữu suffix, `Chen` chèn text vào
+vị trí cursor hiện tại. Nếu cursor đã lệch (surrounding mismatch hoặc `None`),
+chèn sai vị trí rồi cập nhật `da_hien_thi` → state lệch, phím sau mới gây lỗi
+nặng (đầu độc state). Chỉ khi `da_hien_thi` rỗng (composition mới, phím đầu
+tiên), `Chen` thuần an toàn không cần surrounding vì không sở hữu suffix cũ.
+
 `van_ban_truoc_con_tro` là `Option<String>`: nhiều host thật không cung cấp
-surrounding (game, terminal). Khi `None`, runtime không thể verify text đã
-commit có còn ở đúng vị trí không:
+surrounding (game, terminal). Khi `None`:
 
-* **Chen (pure insert)** luôn được phép khi `None` — không xóa text cũ, an toàn.
-* **ThayThe (có delete)** bị chặn khi `None` — relinquish + `ChuyenTiep`.
-* Không đoán text, không gửi Backspace giả, không coi `None` là "optimistic success".
+* **`da_hien_thi` rỗng + Chen** → cho phép (phím đầu vào composition mới).
+* **`da_hien_thi` không rỗng + bất kỳ action** → relinquish + `ChuyenTiep`.
+* Không đoán text, không gửi Backspace giả, không coi `None` là "optimistic
+  success".
 
-Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ để
-verify. Phase 2 tinh chỉnh theo capability host.
+Phase 1 chỉ cho destructive replace (và tiếp tục composition) khi host cung
+cấp surrounding text đủ để verify. Phase 2 tinh chỉnh theo capability host.
 
 Phase 1 verify cursor **gián tiếp** qua `van_ban_truoc_con_tro`: không có
 trường `vi_tri_con_tro` riêng trong contract. Nếu surrounding kết thúc bằng
