@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-//! CadenceRuntime — runtime thuần Rust, độc lập nền tảng cho lõi gõ tiếng Việt
+//! CadenceRuntime - runtime thuần Rust, độc lập nền tảng cho lõi gõ tiếng Việt
 //! Cadence.
 //!
 //! Phase 1 dựng nền móng xử lý phiên nhập, tích hợp Cadence, tính kế hoạch sửa
@@ -12,3 +12,7 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+pub(crate) mod sua;
+
+pub use sua::{DoDaiVanBan, KeHoachSua};

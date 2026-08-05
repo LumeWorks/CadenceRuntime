@@ -36,7 +36,7 @@ Phase 1 **chưa** triển khai và cố tình chưa làm:
 * GUI, tray icon, CLI installer, đóng gói.
 * Nhận diện ứng dụng, app profile, workaround riêng cho app.
 * Async runtime, thread nền, IPC, D-Bus, telemetry.
-* Test trên ứng dụng thật — Phase 1 chỉ test qua host mô phỏng.
+* Test trên ứng dụng thật - Phase 1 chỉ test qua host mô phỏng.
 
 Project **chưa sẵn sàng cho end user** ở Phase 1.
 
@@ -44,10 +44,10 @@ Project **chưa sẵn sàng cho end user** ở Phase 1.
 
 CadenceRuntime là đúng **một Cargo package và một library crate**. Module:
 
-* `cadence` — anti-corruption boundary, module duy nhất biết API Cadence.
-* `sua` — kế hoạch sửa committed text (common-prefix diff an toàn Unicode).
-* `host` — host abstraction (`Host`, `BoiCanhNhap`, `KetQuaHost`, `HanhDong`).
-* `phien` — phiên nhập (`PhienNhap`, `SuKienNhap`, `TrangThaiPhien`).
+* `cadence` - anti-corruption boundary, module duy nhất biết API Cadence.
+* `sua` - kế hoạch sửa committed text (common-prefix diff an toàn Unicode).
+* `host` - host abstraction (`Host`, `BoiCanhNhap`, `KetQuaHost`, `HanhDong`).
+* `phien` - phiên nhập (`PhienNhap`, `SuKienNhap`, `TrangThaiPhien`).
 
 ## Cadence
 
