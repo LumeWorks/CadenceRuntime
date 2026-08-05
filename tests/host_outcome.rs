@@ -181,3 +181,62 @@ fn da_ap_dung_khong_tra_chuyen_tiep() {
     assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
     assert_ne!(ket_qua, KetQuaXuLy::ChuyenTiep);
 }
+
+// --- Fault injection: KhongChac có thể áp dụng hoặc không ---
+
+#[test]
+fn khong_chac_host_ap_dung_thaythe_runtime_khong_delete_cu() {
+    // Host áp dụng ThayThe nhưng trả KhongChac — runtime không biết host đã
+    // áp dụng. Sự kiện kế tiếp phải Chen (không ThayThe xóa text cũ).
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+    assert_eq!(host.van_ban, "á");
+
+    // 'f' → Cadence "áf" → "à" (ThayThe: xóa "á", chèn "à").
+    host.ket_qua_ke_tiep = KetQuaHost::KhongChac;
+    host.khong_chac_ap_dung = true; // Host áp dụng nhưng trả KhongChac.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
+
+    // Runtime trả MatDongBo (không biết host đã áp dụng).
+    assert_eq!(ket_qua, KetQuaXuLy::MatDongBo);
+    // Runtime reset: da_hien_thi rỗng.
+    assert_eq!(phien.da_hien_thi(), "");
+    assert!(phien.dang_mat_dong_bo());
+    // Host đã áp dụng ThayThe: "á" → "à".
+    assert_eq!(host.van_ban, "à");
+
+    // Sự kiện kế tiếp phải Chen (không ThayThe xóa "à" cũ).
+    host.ket_qua_ke_tiep = KetQuaHost::DaApDung;
+    host.khong_chac_ap_dung = false;
+    let so_action = host.lich_su_hanh_dong.len();
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+
+    let action_moi = &host.lich_su_hanh_dong[so_action];
+    assert!(
+        matches!(action_moi, HanhDong::Chen(_)),
+        "sau KhongChac phai Chen, khong ThayThe, duoc {action_moi:?}"
+    );
+    // Text cũ "à" không bị xóa, "a" chèn thêm.
+    assert_eq!(host.van_ban, "àa");
+}
+
+#[test]
+fn khong_chac_khong_ap_dung_text_khong_doi() {
+    // KhongChac với khong_chac_ap_dung = false → host không áp dụng.
+    // Text host không đổi, runtime reset an toàn.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+    assert_eq!(host.van_ban, "á");
+
+    host.ket_qua_ke_tiep = KetQuaHost::KhongChac;
+    host.khong_chac_ap_dung = false; // Host không áp dụng.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
+
+    assert_eq!(ket_qua, KetQuaXuLy::MatDongBo);
+    // Host text không đổi (không áp dụng action).
+    assert_eq!(host.van_ban, "á");
+    assert_eq!(phien.da_hien_thi(), "");
+    assert!(phien.dang_mat_dong_bo());
+}
