@@ -107,6 +107,15 @@ Bất biến được test hành vi (`tests/runtime.rs`):
 
 ## 6. Host outcome semantics
 
+Bất biến tối quan trọng: **mỗi input event xuất hiện tối đa một lần trong ứng
+dụng**. Runtime và adapter Phase 2 cùng bảo đảm:
+
+```text
+một sự kiện → tối đa một host.thuc_thi → tối đa một lần xuất hiện
+```
+
+Không được tồn tại đường "host đã nhận một phần → runtime lại forward event gốc".
+
 `KetQuaHost` phân biệt ba kết quả:
 
 ```rust
@@ -117,15 +126,16 @@ pub enum KetQuaHost {
 }
 ```
 
-| Kết quả | Semantics | Runtime xử lý |
-|---|---|---|
-| `DaApDung` | Host xác nhận action thực thi đúng contract. | Chấp nhận state Cadence mới. `da_hien_thi = noi_dung_moi`. Ghi sự kiện vào `lich_su`. `trang_thai = Rong` nếu Cadence rỗng, `DangGo` nếu còn. |
-| `KhongApDung` | Action chắc chắn chưa thay đổi văn bản. | Không chấp nhận state mới. Quay lui Cadence về trước sự kiện qua `xay_lai_cadence(lich_su)`. `da_hien_thi` và `lich_su` giữ nguyên. Trả `ChuyenTiep` (adapter chuyển tiếp phím gốc, sự kiện không bị nuốt). Không retry destructive. |
-| `KhongChac` | Không biết ứng dụng nhận một phần hay toàn bộ. | `cadence.dat_lai()`, xóa `da_hien_thi`, xóa `lich_su`, `trang_thai = MatDongBo`. Không delete dựa state cũ. Không replay mù phím đã xử lý. |
+| Kết quả | Semantics | Runtime xử lý | Adapter |
+|---|---|---|---|
+| `DaApDung` | Host xác nhận action thực thi đúng contract. | Chấp nhận state Cadence mới. `da_hien_thi = noi_dung_moi`. Ghi sự kiện vào `lich_su`. `trang_thai = Rong` nếu Cadence rỗng, `DangGo` nếu còn. | **Không** chuyển tiếp phím gốc. Text đã xuất hiện đúng một lần. |
+| `KhongApDung` | Action chắc chắn chưa thay đổi văn bản. | Không chấp nhận state mới. Quay lui Cadence về trước sự kiện qua `xay_lai_cadence(lich_su)`. `da_hien_thi` và `lich_su` giữ nguyên. Không retry destructive. | **Chuyển tiếp** phím gốc. Sự kiện chưa xuất hiện, forward đúng một lần. |
+| `KhongChac` | Không biết ứng dụng nhận một phần hay toàn bộ. | `cadence.dat_lai()`, xóa `da_hien_thi`, xóa `lich_su`, `trang_thai = MatDongBo`. Không delete dựa state cũ. Không replay mù phím đã xử lý. | **Không** chuyển tiếp phím gốc. Sự kiện có thể đã xuất hiện (tối đa một lần). |
 
-Runtime không bao giờ coi timeout/lỗi không rõ là `DaApDung`. Fake host
-(`tests/common/mod.rs`) phân biệt ba kết quả và chỉ mutate văn bản khi
-`DaApDung`.
+Runtime không bao giờ coi timeout/lỗi không rõ là `DaApDung`. Runtime không retry
+destructive action sau `KhongApDung`, và không replay mù phím đã xử lý sau
+`KhongChac`. Fake host (`tests/common/mod.rs`) phân biệt ba kết quả và mô phỏng
+cả trường hợp `KhongChac` có áp dụng lẫn không áp dụng.
 
 ## 7. Verify-before-mutate
 

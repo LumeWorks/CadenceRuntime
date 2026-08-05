@@ -57,15 +57,36 @@ enum SuKienNhapDaChapNhan {
 }
 
 /// Kết quả xử lý một sự kiện nhập.
+///
+/// Bất biến tối quan trọng: **mỗi input event xuất hiện tối đa một lần trong
+/// ứng dụng**. Ba biến thể below chỉ đạo adapter Phase 2 cách xử lý sự kiện
+/// gốc:
+///
+/// * [`DaApDung`]: runtime đã gửi action và host xác nhận áp dụng. Adapter
+///   **không** chuyển tiếp phím gốc — text đã xuất hiện đúng một lần.
+/// * [`ChuyenTiep`]: runtime không áp dụng text change nào (host từ chối,
+///   relinquish, hoặc Cadence không đổi). Adapter **nên** chuyển tiếp phím
+///   gốc — sự kiện sẽ xuất hiện đúng một lần qua phím gốc.
+/// * [`MatDongBo`]: host không chắc đã áp dụng một phần hay toàn bộ. Adapter
+///   **không** chuyển tiếp phím gốc — sự kiện có thể đã xuất hiện (tối đa một
+///   lần), chuyển tiếp sẽ tạo bản sao.
+///
+/// Một sự kiện tạo tối đa một lời gọi `host.thuc_thi`. Runtime không bao giờ
+/// retry destructive action sau `KhongApDung`, và không replay mù phím đã xử
+/// lý sau `KhongChac`.
+///
+/// [`DaApDung`]: KetQuaXuLy::DaApDung
+/// [`ChuyenTiep`]: KetQuaXuLy::ChuyenTiep
+/// [`MatDongBo`]: KetQuaXuLy::MatDongBo
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KetQuaXuLy {
     /// Action đã gửi và host xác nhận [`DaApDung`](crate::KetQuaHost::DaApDung);
-    /// state đã tiến.
+    /// state đã tiến. Adapter không chuyển tiếp phím gốc.
     DaApDung,
-    /// Runtime chuyển tiếp sự kiện gốc cho ứng dụng (host từ chối, hoặc sự kiện
-    /// relinquish, hoặc Cadence không đổi). Adapter nên chuyển tiếp phím gốc.
+    /// Runtime không áp dụng text change. Adapter nên chuyển tiếp phím gốc.
     ChuyenTiep,
-    /// Host không chắc chắn; phiên đã mất đồng bộ an toàn.
+    /// Host không chắc chắn; phiên đã mất đồng bộ an toàn. Adapter không
+    /// chuyển tiếp phím gốc (host có thể đã áp dụng một phần).
     MatDongBo,
 }
 
@@ -124,6 +145,8 @@ impl PhienNhap {
     ///
     /// Đây là entry point duy nhất. Một sự kiện tạo tối đa một lời gọi
     /// `host.thuc_thi` (bất biến zero-preedit: một sự kiện - một action logic).
+    /// Xem [`KetQuaXuLy`] cho contract "tối đa một lần xuất hiện" và hướng dẫn
+    /// adapter khi nào chuyển tiếp phím gốc.
     pub fn xu_ly<H: Host>(&mut self, host: &mut H, su_kien: &SuKienNhap) -> KetQuaXuLy {
         let boi_canh = host.boi_canh();
         // 1. Đồng bộ focus generation. Lần đầu adopt; nếu đổi → relinquish + forward.

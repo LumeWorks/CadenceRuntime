@@ -5,7 +5,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, HanhDong, KetQuaHost, PhienNhap, SuKienNhap};
+use cadence_runtime::{ContextId, HanhDong, KetQuaHost, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
@@ -129,4 +129,55 @@ fn khong_chac_khong_replay_mou_phim_da_xu_ly() {
     assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc_khongchac + 1);
     assert!(phien.dang_mat_dong_bo());
     assert_eq!(phien.da_hien_thi(), "");
+}
+
+// --- Contract: mỗi input event xuất hiện tối đa một lần trong ứng dụng ---
+
+#[test]
+fn khong_chac_tra_mat_dong_bo_khong_chuyen_tiep() {
+    // KhongChac → MatDongBo (KHÔNG phải ChuyenTiep).
+    // Adapter không được forward phím gốc — host có thể đã áp dụng một phần.
+    // Sự kiện xuất hiện tối đa một lần (0 hoặc 1), chuyển tiếp sẽ tạo bản sao.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+
+    host.ket_qua_ke_tiep = KetQuaHost::KhongChac;
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
+
+    // MatDongBo, không phải ChuyenTiep — adapter phải biết không forward.
+    assert_eq!(ket_qua, KetQuaXuLy::MatDongBo);
+    assert_ne!(ket_qua, KetQuaXuLy::ChuyenTiep);
+}
+
+#[test]
+fn khong_ap_dung_dung_mot_action_khong_retry_destructive() {
+    // KhongApDung → ChuyenTiep (adapter forward), đúng MỘT thuc_thi call
+    // (không retry ThayThe). Sự kiện chưa xuất hiện qua action → forward
+    // đúng một lần qua phím gốc = tổng đúng một lần.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+
+    host.ket_qua_ke_tiep = KetQuaHost::KhongApDung;
+    let so_action_truoc = host.lich_su_hanh_dong.len();
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
+
+    // ChuyenTiep: adapter chuyển tiếp phím gốc.
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    // Đúng một thuc_thi call — không retry destructive.
+    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc + 1);
+}
+
+#[test]
+fn da_ap_dung_khong_tra_chuyen_tiep() {
+    // DaApDung → DaApDung (KHÔNG phải ChuyenTiep).
+    // Adapter không được forward phím gốc — text đã xuất hiện đúng một lần.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+
+    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
+    assert_ne!(ket_qua, KetQuaXuLy::ChuyenTiep);
 }

@@ -54,7 +54,16 @@ pub enum HanhDong {
 
 /// Kết quả host thực thi một [`HanhDong`].
 ///
-/// Runtime không được coi timeout hoặc lỗi không rõ ràng là [`KetQuaHost::DaApDung`].
+/// Runtime không được coi timeout hoặc lỗi không rõ ràng là
+/// [`DaApDung`]. Mỗi biến thể có ngữ nghĩa chặt:
+///
+/// * [`DaApDung`]: host chắc chắn đã áp dụng toàn bộ action đúng contract.
+///   Runtime chấp nhận state mới.
+/// * [`KhongApDung`]: host chắc chắn **chưa** thay đổi văn bản. Runtime quay
+///   lui state Cadence, trả [`ChuyenTiep`](crate::KetQuaXuLy::ChuyenTiep).
+/// * [`KhongChac`]: host không biết đã nhận một phần hay toàn bộ. Runtime reset
+///   an toàn, trả [`MatDongBo`](crate::KetQuaXuLy::MatDongBo). Adapter không
+///   chuyển tiếp phím gốc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KetQuaHost {
     /// Host xác nhận action đã được thực thi đúng contract.
