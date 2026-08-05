@@ -56,6 +56,14 @@ enum SuKienNhapDaChapNhan {
     XoaLui,
 }
 
+/// Số sự kiện tối đa trong lịch sử replay. Vượt giới hạn → relinquish để chống
+/// input độc hại tạo composition dài không thực tế khiến replay O(n) đắt.
+///
+/// Cadence nội bộ giới hạn 128 thao tác (`gioi_han_thao_tac`), nhưng `xoa_lui`
+/// rút ngắn history Cadence mà vẫn thêm entry vào `lich_su` runtime. Giới hạn
+/// này chặn `lich_su` tăng không hợp do xen kẽ them/xoa.
+const GIOI_HAN_LICH_SU: usize = 256;
+
 /// Kết quả xử lý một sự kiện nhập.
 ///
 /// Bất biến tối quan trọng: **mỗi input event xuất hiện tối đa một lần trong
@@ -107,6 +115,10 @@ pub struct PhienNhap {
     trang_thai: TrangThaiPhien,
     /// Lịch sử sự kiện đã chấp nhận, để replay khi host từ chối.
     lich_su: Vec<SuKienNhapDaChapNhan>,
+    /// Tổng số operation Cadence (them_ky_tu/xoa_lui) kể cả replay. Chỉ dùng
+    /// cho test đo chi phí; 0 trong production build.
+    #[cfg(test)]
+    so_op_cadence: usize,
 }
 
 impl PhienNhap {
@@ -120,6 +132,8 @@ impl PhienNhap {
             the_he_focus: None,
             trang_thai: TrangThaiPhien::Rong,
             lich_su: Vec::new(),
+            #[cfg(test)]
+            so_op_cadence: 0,
         }
     }
 
@@ -203,12 +217,22 @@ impl PhienNhap {
         boi_canh: &BoiCanhNhap,
         su_kien: SuKienXay,
     ) -> KetQuaXuLy {
+        // Giới hạn lịch sử: nếu quá dài, relinquish để chống input độc hại tạo
+        // composition dài không thực tế khiến replay O(n) đắt. Composition đã
+        // commit trong host; runtime chỉ ngừng theo dõi suffix.
+        if self.lich_su.len() >= GIOI_HAN_LICH_SU {
+            self.relinquish();
+        }
         let noi_dung_cu = self.da_hien_thi.clone();
         // Áp dụng vào Cadence (mutates). Nếu KhongDoi → forward.
         let ket_qua_cadence = match su_kien {
             SuKienXay::KyTu(c) => self.cadence.them_ky_tu(c),
             SuKienXay::XoaLui => self.cadence.xoa_lui(),
         };
+        #[cfg(test)]
+        {
+            self.so_op_cadence += 1;
+        }
         if matches!(ket_qua_cadence, KetQuaCadence::KhongDoi) {
             // Cadence không đổi (giới hạn, hoặc xóa khi rỗng) - forward.
             return KetQuaXuLy::ChuyenTiep;
@@ -252,6 +276,10 @@ impl PhienNhap {
             KetQuaHost::KhongApDung => {
                 // Không chấp nhận state mới. Quay lui Cadence về trước sự kiện.
                 self.cadence = xay_lai_cadence(&self.lich_su);
+                #[cfg(test)]
+                {
+                    self.so_op_cadence += self.lich_su.len();
+                }
                 // da_hien_thi và lich_su giữ nguyên. Sự kiện không bị nuốt.
                 KetQuaXuLy::ChuyenTiep
             }
@@ -316,6 +344,22 @@ impl PhienNhap {
     }
 }
 
+#[cfg(test)]
+impl PhienNhap {
+    /// Trả tổng số operation Cadence (them_ky_tu/xoa_lui) kể cả replay.
+    /// Dùng cho test đo chi phí: hot path DaApDung tăng 1 mỗi phím, replay
+    /// KhongApDung tăng thêm N (N = lich_su.len()).
+    pub(crate) fn so_op_cadence(&self) -> usize {
+        self.so_op_cadence
+    }
+
+    /// Trả độ dài lịch sử sự kiện đã chấp nhận. Dùng cho test giới hạn và
+    /// verify history được cắt tại word boundary/reset.
+    pub(crate) fn do_dai_lich_su(&self) -> usize {
+        self.lich_su.len()
+    }
+}
+
 /// Sự kiện xây composition (dạng nội bộ, đã qua kiểm tra focus/context).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SuKienXay {
@@ -340,4 +384,131 @@ fn xay_lai_cadence(lich_su: &[SuKienNhapDaChapNhan]) -> PhienCadence {
         }
     }
     pc
+}
+
+#[cfg(test)]
+mod test_noi_bo {
+    //! Test nội bộ: đo chi phí replay, giới hạn lịch sử, và history cắt tại
+    //! word boundary. Truy cập field private qua #[cfg(test)] methods.
+
+    use super::*;
+    use crate::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
+
+    /// Host đơn giản cho unit test: giữ text, cursor luôn cuối, surrounding
+    /// luôn `Some`.
+    struct HostDonGian {
+        context_id: ContextId,
+        van_ban: String,
+        ket_qua: KetQuaHost,
+    }
+
+    impl HostDonGian {
+        fn moi(context_id: ContextId) -> Self {
+            Self {
+                context_id,
+                van_ban: String::new(),
+                ket_qua: KetQuaHost::DaApDung,
+            }
+        }
+    }
+
+    impl Host for HostDonGian {
+        fn boi_canh(&self) -> BoiCanhNhap {
+            BoiCanhNhap {
+                context_id: self.context_id,
+                the_he_focus: 1,
+                dang_co_focus: true,
+                van_ban_truoc_con_tro: Some(self.van_ban.clone()),
+            }
+        }
+        fn thuc_thi(&mut self, hanh_dong: &HanhDong) -> KetQuaHost {
+            match hanh_dong {
+                HanhDong::Chen(s) => self.van_ban.push_str(s),
+                HanhDong::ThayThe(ke) => {
+                    let xoa = ke.xoa_truoc.byte_utf8;
+                    let len = self.van_ban.len();
+                    let bat_dau = len.saturating_sub(xoa);
+                    self.van_ban.replace_range(bat_dau..len, &ke.chen);
+                }
+                HanhDong::ChuyenTiep => {}
+            }
+            self.ket_qua
+        }
+    }
+
+    #[test]
+    fn hot_path_da_ap_dung_khong_replay() {
+        // Chứng minh: DaApDung chỉ tốn 1 operation Cadence mỗi phím (không
+        // replay). 50 phím → đúng 50 operation.
+        let mut phien = PhienNhap::moi(ContextId(1));
+        let mut host = HostDonGian::moi(ContextId(1));
+        for _ in 0..50 {
+            phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        }
+        assert_eq!(
+            phien.so_op_cadence(),
+            50,
+            "hot path phai la O(1) moi phim, khong replay"
+        );
+    }
+
+    #[test]
+    fn khong_ap_dung_replay_tang_chi_phi() {
+        // Chứng minh: KhongApDung tốn thêm N operation replay (N = lich_su).
+        // 50 DaApDung → 50 op. 1 KhongApDung → +1 (event) +50 (replay) = 101.
+        let mut phien = PhienNhap::moi(ContextId(1));
+        let mut host = HostDonGian::moi(ContextId(1));
+        for _ in 0..50 {
+            phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        }
+        assert_eq!(phien.so_op_cadence(), 50);
+
+        host.ket_qua = KetQuaHost::KhongApDung;
+        phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        assert_eq!(
+            phien.so_op_cadence(),
+            101,
+            "replay phai them N op (N=lich_su), tong = 50+1+50"
+        );
+    }
+
+    #[test]
+    fn ranh_gioi_tu_xoa_lich_su() {
+        // RanhGioiTu (word boundary) → relinquish → lich_su cleared.
+        let mut phien = PhienNhap::moi(ContextId(1));
+        let mut host = HostDonGian::moi(ContextId(1));
+        for _ in 0..10 {
+            phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        }
+        assert_eq!(phien.do_dai_lich_su(), 10);
+
+        phien.xu_ly(&mut host, &SuKienNhap::RanhGioiTu(' '));
+        assert_eq!(phien.do_dai_lich_su(), 0, "RanhGioiTu phai xoa lich_su");
+
+        // Gõ tiếp: lich_su grows from 0.
+        phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        assert_eq!(phien.do_dai_lich_su(), 1);
+    }
+
+    #[test]
+    fn gioi_han_lich_su_relinquish_khi_vuot() {
+        // lich_su đạt GIOI_HAN_LICH_SU → relinquish trước sự kiện kế tiếp.
+        // Xen kẽ 'k' và XoaLui: mỗi cặp thêm 2 vào lich_su, Cadence history
+        // không tăng (xoa undo them).
+        let mut phien = PhienNhap::moi(ContextId(1));
+        let mut host = HostDonGian::moi(ContextId(1));
+        for _ in 0..128 {
+            phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+            phien.xu_ly(&mut host, &SuKienNhap::XoaLui);
+        }
+        assert_eq!(phien.do_dai_lich_su(), 256);
+
+        // Sự kiện 257: runtime relinquish (vượt GIOI_HAN_LICH_SU).
+        phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
+        assert_eq!(
+            phien.do_dai_lich_su(),
+            1,
+            "sau relinquish, lich_su phai reset ve 1 (chi su kien moi)"
+        );
+    }
 }

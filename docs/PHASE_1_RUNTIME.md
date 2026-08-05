@@ -189,6 +189,13 @@ hiện trong đó.
 Cách này không sửa Cadence (không cần trait `Clone` hay transaction). Chỉ cần
 `PhienCadence::moi()` + `them_ky_tu`/`xoa_lui` đã có.
 
+Replay chỉ chạy trên đường thất bại (`KhongApDung`), không phải mỗi phím. Hot
+path `DaApDung` là O(1) — chỉ push vào `lich_su`. Lịch sử được cắt tại
+`RanhGioiTu`/`DiChuyenConTro`/`DatLai`/`KhongChac`/focus change, và giới hạn
+256 sự kiện (`GIOI_HAN_LICH_SU`) để chống input độc hại. Khi `lich_su` vượt
+giới hạn, runtime relinquish (composition đã commit trong host, runtime chỉ
+ngừng theo dõi suffix).
+
 ## 9. Cách CadenceRuntime pin Cadence
 
 `Cargo.toml`:
@@ -238,7 +245,7 @@ Nếu Cadence thay đổi API, mục tiêu là chỉ cần sửa `cadence.rs`.
   sử sau mỗi `them_ky_tu`/`xoa_lui` (thiết kế Cadence, không phải runtime).
   Composition dài → chi phí tăng. Runtime replay (`xay_lai_cadence`) chỉ chạy
   khi `KhongApDung`, không phải mỗi phím. Lịch sử bị cắt bởi `DatLai`/relinquish
-  thường xuyên trong thực tế.
+  thường xuyên trong thực tế và giới hạn 256 sự kiện để chống input độc hại.
 * **Chưa có `SessionManager`.** Phase 1 một `PhienNhap` per context; adapter tự
   giữ map context → `PhienNhap`. Test tạo hai `PhienNhap` để chứng minh độc lập.
 * **`RanhGioiTu` chèn ký tự raw.** Ký tự ranh giới (space) đi qua `Chen` như văn
