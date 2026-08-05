@@ -13,8 +13,11 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub(crate) mod cadence;
 pub mod host;
+pub(crate) mod phien;
 pub(crate) mod sua;
 
 pub use host::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
+pub use phien::{KetQuaXuLy, PhienNhap, SuKienNhap};
 pub use sua::{DoDaiVanBan, KeHoachSua};

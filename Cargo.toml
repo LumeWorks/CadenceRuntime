@@ -14,6 +14,16 @@ repository = "https://github.com/LumeWorks/CadenceRuntime"
 name = "cadence_runtime"
 path = "src/lib.rs"
 
+[dependencies]
+# Cadence được pin theo full commit SHA, không theo branch, vì Cadence đang
+# được phát triển song song và `main` có thể thay đổi bất kỳ lúc nào. Xem
+# `docs/PHASE_1_RUNTIME.md` cho lý do chọn SHA này.
+cadence = {
+    package = "cadence-ime",
+    git = "https://github.com/LumeWorks/Cadence",
+    rev = "52b3bb49403245e68a5f5291b04741953fd666b6",
+}
+
 [lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
