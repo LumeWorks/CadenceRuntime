@@ -1,0 +1,14 @@
+CadenceRuntime
+==============
+
+CadenceRuntime — runtime thuần Rust, độc lập nền tảng cho lõi gõ tiếng Việt Cadence.
+
+Copyright (c) 2026 Lê Hùng Quang Minh
+
+Được cấp phép theo Mozilla Public License, Version 2.0 (the "License");
+bạn không được sử dụng file này ngoại trừ khi tuân thủ License. Bạn có thể
+xem đầy đủ License tại file LICENSE đi kèm hoặc tại:
+
+    https://www.mozilla.org/MPL/2.0/
+
+Source: https://github.com/LumeWorks/CadenceRuntime
