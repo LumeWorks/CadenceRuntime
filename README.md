@@ -51,8 +51,20 @@ CadenceRuntime là đúng **một Cargo package và một library crate**. Modul
 
 ## Cadence
 
-CadenceRuntime pin Cadence theo full commit SHA, không theo branch. Xem
-`Cargo.toml` và `docs/PHASE_1_RUNTIME.md` cho SHA đang pin.
+CadenceRuntime pin Cadence theo **full commit SHA** (`52b3bb49403245e68a5f5291b04741953fd666b6`),
+không theo branch, vì Cadence đang phát triển song song. Xem `Cargo.toml` cho
+dependency và `docs/PHASE_1_RUNTIME.md` cho lý do chọn SHA và API Cadence đang
+dùng. Chỉ `src/cadence.rs` được phép import Cadence.
+
+## MSRV
+
+Rust 1.85 (đồng bộ với Cadence).
+
+## Tài liệu thiết kế
+
+Xem [`docs/PHASE_1_RUNTIME.md`](./docs/PHASE_1_RUNTIME.md) cho mục tiêu, non-goals,
+sơ đồ luồng dữ liệu, trách nhiệm module, bất biến zero-preedit, host outcome
+semantics, verify-before-mutate và tiêu chí bước sang Phase 2.
 
 ## Chạy test
 
