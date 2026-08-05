@@ -5,7 +5,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, HanhDong, PhienNhap, SuKienNhap};
+use cadence_runtime::{ContextId, HanhDong, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
@@ -150,4 +150,100 @@ fn context_lech_khong_xoa() {
     assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
     assert_eq!(host.van_ban, "á");
     assert_eq!(phien.da_hien_thi(), "");
+}
+
+// --- Blocker 1: surrounding=None không được destructive replace ---
+//
+// Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ
+// để verify. Khi None, runtime không được đoán text đã commit có còn ở đúng
+// vị trí không. Chen (pure insert) vẫn an toàn. ThayThe (có delete) bị chặn.
+
+#[test]
+fn surrounding_none_chen_duoc_phep_khong_pha_huy() {
+    // surrounding=None + action chỉ insert (Chen) → không phá hủy.
+    // "ab" trong Cadence không có Telex transformation → cả hai đều Chen.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    host.cung_cap_surrounding = false;
+
+    // 'a' → Chen (da_hien_thi rỗng → pure insert, luôn an toàn).
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
+    assert_eq!(host.van_ban, "a");
+
+    // 'b' → Cadence giữ "ab" → la_chen → Chen (pure insert, an toàn với None).
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('b'));
+    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
+    assert_eq!(host.van_ban, "ab");
+
+    // Không có ThayThe trong history (tất cả Chen).
+    for hd in &host.lich_su_hanh_dong {
+        assert!(
+            matches!(hd, HanhDong::Chen(_)),
+            "surrounding=None chi duoc Chen, duoc {hd:?}"
+        );
+    }
+}
+
+#[test]
+fn surrounding_none_chan_thaythe_reset_ownership_an_toan() {
+    // surrounding=None + Cadence yêu cầu replace (ThayThe) → không gửi ThayThe,
+    // relinquish ownership an toàn, sự kiện không bị nuốt.
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    host.cung_cap_surrounding = false;
+
+    // 'a' → Chen, da_hien_thi = "a"
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+    assert_eq!(host.van_ban, "a");
+    assert_eq!(phien.da_hien_thi(), "a");
+
+    // 's' → Cadence transforms "as" → "á" (ThayThe: xóa "a", chèn "á").
+    // surrounding=None → không verify → phải relinquish + ChuyenTiep.
+    let so_action_truoc = host.lich_su_hanh_dong.len();
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('s'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+
+    // Không gửi action mới (relinquish + forward, không gọi thuc_thi).
+    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
+    // Văn bản host không bị xóa.
+    assert_eq!(host.van_ban, "a");
+    // Runtime đã relinquish: da_hien_thi rỗng, không sở hữu suffix cũ.
+    assert_eq!(phien.da_hien_thi(), "");
+    assert!(phien.dang_rong());
+
+    // Sau reset, sự kiện kế tiếp không bị nuốt: đi vào composition mới (Chen).
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
+    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
+    assert_eq!(host.van_ban, "ad");
+    assert_eq!(phien.da_hien_thi(), "d");
+}
+
+#[test]
+fn surrounding_none_context_khac_khong_anh_huong() {
+    // Context A: None → ThayThe bị chặn. Context B: Some → ThayThe bình thường.
+    // A không bị B ảnh hưởng và ngược lại.
+    let mut phien_a = PhienNhap::moi(ContextId(1));
+    let mut host_a = HostMoPhong::moi(ContextId(1));
+    host_a.cung_cap_surrounding = false;
+
+    let mut phien_b = PhienNhap::moi(ContextId(2));
+    let mut host_b = HostMoPhong::moi(ContextId(2));
+    // host_b.cung_cap_surrounding = true (mặc định)
+
+    // A: 'a' → Chen, 's' → bị chặn (ThayThe, surrounding=None).
+    phien_a.xu_ly(&mut host_a, &SuKienNhap::KyTu('a'));
+    phien_a.xu_ly(&mut host_a, &SuKienNhap::KyTu('s'));
+    assert_eq!(host_a.van_ban, "a");
+    assert_eq!(phien_a.da_hien_thi(), "");
+
+    // B: 'a' → Chen, 's' → ThayThe (surrounding khớp).
+    phien_b.xu_ly(&mut host_b, &SuKienNhap::KyTu('a'));
+    phien_b.xu_ly(&mut host_b, &SuKienNhap::KyTu('s'));
+    assert_eq!(host_b.van_ban, "á");
+    assert_eq!(phien_b.da_hien_thi(), "á");
+
+    // A không bị B ảnh hưởng.
+    assert_eq!(host_a.van_ban, "a");
+    assert_eq!(phien_a.da_hien_thi(), "");
 }

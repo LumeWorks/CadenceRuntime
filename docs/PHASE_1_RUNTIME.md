@@ -42,7 +42,8 @@ PhienNhap::xu_ly(host)
   │     └─ van_ban_truoc_con_tro: Option<String>
   │
   ├─ verify focus / context / surrounding
-  │     lệch → relinquish + ChuyenTiep
+  │     lệch hoặc None+ThayThe → relinquish + ChuyenTiep
+  │     Chen (pure insert) luôn an toàn, không cần verify
   │
   ├─ PhienCadence::them_ky_tu / xoa_lui  (boundary, không lộ kiểu Cadence)
   │     ↓
@@ -128,14 +129,14 @@ Runtime không bao giờ coi timeout/lỗi không rõ là `DaApDung`. Fake host
 
 ## 7. Verify-before-mutate
 
-Trước khi gửi `ThayThe` (hoặc bất kỳ action khi đang sở hữu suffix), `xu_ly`
+Trước khi gửi `ThayThe` (destructive replace có xóa text đã commit), `xu_ly`
 kiểm tra:
 
 1. `boi_canh.context_id == self.context_id` - còn đúng context.
 2. `boi_canh.dang_co_focus` - context còn focus.
 3. `boi_canh.the_he_focus == self.the_he_focus` - focus generation chưa đổi.
-4. Nếu `da_hien_thi` không rỗng: `boi_canh.van_ban_truoc_con_tro` (nếu `Some`)
-   phải kết thúc bằng `da_hien_thi` - surrounding text khớp.
+4. `KeHoachSua` có liên quan delete (không phải `la_chen`): `boi_canh.van_ban_truoc_con_tro`
+   phải là `Some` và kết thúc bằng `da_hien_thi` - surrounding text khớp.
 
 Bất kỳ điều kiện nào sai:
 
@@ -145,9 +146,15 @@ Bất kỳ điều kiện nào sai:
 * Sai lệch của một context không ảnh hưởng context khác (mỗi `PhienNhap` riêng).
 
 `van_ban_truoc_con_tro` là `Option<String>`: nhiều host thật không cung cấp
-surrounding (game, terminal). Khi `None`, runtime không thể verify và cho phép
-(documented limitation; Phase 2 tinh chỉnh theo capability host). Không giả định
-surrounding luôn tồn tại.
+surrounding (game, terminal). Khi `None`, runtime không thể verify text đã
+commit có còn ở đúng vị trí không:
+
+* **Chen (pure insert)** luôn được phép khi `None` — không xóa text cũ, an toàn.
+* **ThayThe (có delete)** bị chặn khi `None` — relinquish + `ChuyenTiep`.
+* Không đoán text, không gửi Backspace giả, không coi `None` là "optimistic success".
+
+Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ để
+verify. Phase 2 tinh chỉnh theo capability host.
 
 ## 8. Giữ state Cadence chưa commit cho tới khi host thành công
 
@@ -210,14 +217,18 @@ Nếu Cadence thay đổi API, mục tiêu là chỉ cần sửa `cadence.rs`.
 
 * **Chưa test trên ứng dụng thật.** Mọi kiểm chứng qua `HostMoPhong`. UX thực
   (không mất chữ khi gõ nhanh, không nhân đôi ký tự) chưa thể chứng minh ở Phase 1.
-* **Surrounding `None` optimistic.** Host không cung cấp surrounding thì runtime
-  không verify, vẫn gửi `ThayThe`. Phase 2 cần capability negotiation.
+* **Surrounding `None` chặn ThayThe.** Host không cung cấp surrounding thì
+  runtime chỉ cho phép `Chen` (insert thuần), chặn `ThayThe` (destructive
+  replace). Telex transformation cần surrounding để verify. Phase 2 cần
+  capability negotiation hoặc adapter tự theo dõi cursor.
 * **MatDongBo phục hồi thụ động.** Sau `KhongChac`, runtime về `Rong` khi
   `da_hien_thi` rỗng và sự kiện kế tiếp verify-passing. Không có cơ chế chủ động
   reconcicle văn bản thật.
-* **Cadence replay O(n) mỗi phím.** Cadence dựng lại snapshot từ lịch sử sau mỗi
-  thao tác. Composition dài → chi phí tăng. Phase 1 không tối ưu vì lịch sử bị
-  cắt bởi `DatLai`/relinquish thường xuyên trong thực tế.
+* **Cadence rebuild O(n) mỗi phím.** Cadence nội bộ dựng lại snapshot từ lịch
+  sử sau mỗi `them_ky_tu`/`xoa_lui` (thiết kế Cadence, không phải runtime).
+  Composition dài → chi phí tăng. Runtime replay (`xay_lai_cadence`) chỉ chạy
+  khi `KhongApDung`, không phải mỗi phím. Lịch sử bị cắt bởi `DatLai`/relinquish
+  thường xuyên trong thực tế.
 * **Chưa có `SessionManager`.** Phase 1 một `PhienNhap` per context; adapter tự
   giữ map context → `PhienNhap`. Test tạo hai `PhienNhap` để chứng minh độc lập.
 * **`RanhGioiTu` chèn ký tự raw.** Ký tự ranh giới (space) đi qua `Chen` như văn

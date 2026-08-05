@@ -191,14 +191,17 @@ impl PhienNhap {
             return KetQuaXuLy::ChuyenTiep;
         }
         let noi_dung_moi = self.cadence.ban_chup().noi_dung;
-        // Verify-before-mutate: nếu runtime đang sở hữu suffix mà surrounding
-        // text lệch da_hien_thi, không tin vị trí con trỏ - relinquish + forward.
-        if !self.da_hien_thi.is_empty() && !self.khop_surrounding(boi_canh) {
+        // Tính kế hoạch sửa từ da_hien_thi sang rendered mới.
+        let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
+        // Verify-before-mutate: chỉ cho phép ThayThe (xóa text đã commit) khi
+        // host cung cấp surrounding text đủ để verify suffix. Chen (pure insert)
+        // luôn an toàn vì không xóa text cũ. Khi surrounding là None, runtime
+        // không thể biết text đã commit có còn ở đúng vị trí không - phải
+        // relinquish và chuyển tiếp sự kiện gốc.
+        if !ke.la_rong() && !ke.la_chen() && !self.khop_surrounding(boi_canh) {
             self.relinquish();
             return KetQuaXuLy::ChuyenTiep;
         }
-        // Tính kế hoạch sửa từ da_hien_thi sang rendered mới.
-        let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
         // Chọn action logic duy nhất (zero-preedit: chỉ Chen/ThayThe/ChuyenTiep).
         let hanh_dong = if ke.la_rong() {
             HanhDong::ChuyenTiep
@@ -266,12 +269,18 @@ impl PhienNhap {
 
     /// Kiểm tra surrounding text trước con trỏ kết thúc bằng `da_hien_thi`.
     ///
-    /// Khi host không cung cấp surrounding (`None`), không thể verify; Phase 1
-    /// cho phép (documented limitation; Phase 2 tinh chỉnh theo capability host).
+    /// Trả `true` khi host cung cấp surrounding (`Some`) và nó kết thúc bằng
+    /// `da_hien_thi` - tức composition runtime theo dõi vẫn ở đúng vị trí trước
+    /// con trỏ. Trả `false` khi surrounding `None` (không thể verify) hoặc khi
+    /// surrounding không khớp (text đã thay đổi ngoài runtime).
+    ///
+    /// Phase 1 chỉ cho phép destructive replace (ThayThe) khi host cung cấp
+    /// surrounding text đủ để verify. Khi `None`, runtime không được đoán text
+    /// đã commit có còn ở đúng vị trí không.
     fn khop_surrounding(&self, boi_canh: &BoiCanhNhap) -> bool {
         match &boi_canh.van_ban_truoc_con_tro {
             Some(vb) => vb.ends_with(&self.da_hien_thi),
-            None => true,
+            None => false,
         }
     }
 

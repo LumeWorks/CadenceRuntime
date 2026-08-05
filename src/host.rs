@@ -16,9 +16,10 @@ pub struct ContextId(pub u64);
 /// Ảnh chụp ngữ cảnh nhập tại thời điểm runtime cần quyết định.
 ///
 /// `van_ban_truoc_con_tro` là `Option`: nhiều host thật không cung cấp
-/// surrounding text (ví dụ game, terminal). Runtime không giả định nó luôn tồn
-/// tại; khi `None`, verify-before-mutate không thể kiểm tra suffix và đi đường
-/// an toàn (xem [`PhienNhap`](crate::PhienNhap)).
+/// surrounding text (ví dụ game, terminal). Khi `None`, runtime không thể
+/// verify text đã commit có còn ở đúng vị trí không, nên chỉ cho phép `Chen`
+/// (insert thuần) và chặn `ThayThe` (destructive replace). Xem
+/// [`PhienNhap`](crate::PhienNhap) cho chi tiết contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoiCanhNhap {
     /// Context đang giữ focus.
@@ -28,6 +29,11 @@ pub struct BoiCanhNhap {
     /// `true` nếu context đang có focus nhập.
     pub dang_co_focus: bool,
     /// Văn bản trước con trỏ (surrounding text), nếu host cung cấp.
+    ///
+    /// Phase 1 verify cursor gián tiếp qua trường này: nếu `Some` và kết thúc
+    /// bằng `da_hien_thi` runtime, con trỏ được coi là ngay sau composition.
+    /// Nếu `None`, runtime không verify được vị trí cursor nên chỉ cho phép
+    /// insert thuần, không delete.
     pub van_ban_truoc_con_tro: Option<String>,
 }
 
