@@ -166,6 +166,13 @@ commit có còn ở đúng vị trí không:
 Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ để
 verify. Phase 2 tinh chỉnh theo capability host.
 
+Phase 1 verify cursor **gián tiếp** qua `van_ban_truoc_con_tro`: không có
+trường `vi_tri_con_tro` riêng trong contract. Nếu surrounding kết thúc bằng
+`da_hien_thi`, con trỏ được coi là ngay sau composition. Cursor di chuyển
+phát hiện qua mismatch surrounding (khi host cung cấp `Some`), hoặc qua sự
+kiện `DiChuyenConTro` (explicit relinquish). Không tuyên bố verify cursor
+tuyệt đối.
+
 ## 8. Giữ state Cadence chưa commit cho tới khi host thành công
 
 `PhienCadence` không `Clone` (vì `PhienGo` của Cadence không `Clone`). Để không

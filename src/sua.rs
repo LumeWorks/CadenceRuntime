@@ -19,16 +19,18 @@
 
 /// Độ dài văn bản theo ba đơn vị trung lập nền tảng.
 ///
-/// Chưa thêm grapheme count vì API Cadence và test Phase 1 chưa chứng minh
-/// cần thiết; thêm `unicode-segmentation` chỉ để phòng tương lai sẽ là
-/// dependency thừa.
+/// `ky_tu_unicode` đếm **code point** (Unicode scalar value, `char::count`),
+/// không phải grapheme. Một emoji ZWJ như "👨‍👩‍👧" là 5 code point nhưng 1
+/// grapheme. Chưa thêm grapheme count vì API Cadence và test Phase 1 chưa
+/// chứng minh cần thiết; thêm `unicode-segmentation` chỉ để phòng tương lai sẽ
+/// là dependency thừa. Adapter nào cần grapheme count phải tự tính.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DoDaiVanBan {
     /// Số byte UTF-8.
     pub byte_utf8: usize,
     /// Số đơn vị UTF-16 (một ký tự ngoài BMP chiếm 2 đơn vị).
     pub don_vi_utf16: usize,
-    /// Số ký tự Unicode (code point).
+    /// Số code point (Unicode scalar value), không phải grapheme.
     pub ky_tu_unicode: usize,
 }
 

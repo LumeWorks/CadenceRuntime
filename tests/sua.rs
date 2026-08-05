@@ -154,3 +154,55 @@ fn doi_dau_thanh_oa_thanh_óa() {
     assert_eq!(ke.xoa_truoc, dodai("òa"));
     assert_eq!(ke.chen, "óa");
 }
+
+// --- Unicode diff: NFD, combining marks, emoji ZWJ ---
+
+#[test]
+fn nfd_combining_mark_khong_cat_sai_boundary() {
+    // NFD "é" = "e" + U+0301 (combining acute). NFC "é" = U+00E9.
+    // Common prefix = 0 vì 'e' != 'é'. Xóa toàn bộ NFD, chèn NFC.
+    let nfd = "e\u{0301}";
+    let nfc = "é";
+    let ke = sua(nfd, nfc);
+    assert_eq!(ke.xoa_truoc, dodai(nfd));
+    assert_eq!(
+        ke.xoa_truoc.ky_tu_unicode, 2,
+        "NFD e+U+0301 la 2 code point"
+    );
+    assert_eq!(ke.chen, nfc);
+}
+
+#[test]
+fn combining_mark_append_la_chen() {
+    // "tie" → "tie\u{0301}" (append combining mark). Common prefix "tie"
+    // (3 byte), xóa "" (rỗng), chèn "\u{0301}". la_chen = true.
+    let ke = sua("tie", "tie\u{0301}");
+    assert!(ke.la_chen());
+    assert!(ke.xoa_truoc.la_rong());
+    assert_eq!(ke.chen, "\u{0301}");
+}
+
+#[test]
+fn emoji_zwj_char_level_diff() {
+    // "👨‍👩‍👧" = '👨' + U+200D + '👩' + U+200D + '👧' (5 code point, 1 grapheme).
+    // "👨‍👩‍👦" = '👨' + U+200D + '👩' + U+200D + '👦' (5 code point, 1 grapheme).
+    // Common prefix: 4 code point khớp, '👧' != '👦' → break.
+    let cu = "👨‍👩‍👧";
+    let moi = "👨‍👩‍👦";
+    let ke = sua(cu, moi);
+    // xoa_truoc = "👧" (1 code point, 4 byte UTF-8, 2 đơn vị UTF-16).
+    assert_eq!(ke.xoa_truoc.ky_tu_unicode, 1);
+    assert_eq!(ke.xoa_truoc.byte_utf8, 4);
+    assert_eq!(ke.xoa_truoc.don_vi_utf16, 2);
+    // chen = "👦".
+    assert_eq!(ke.chen, "👦");
+}
+
+#[test]
+fn ky_tu_unicode_dem_codepoint_khong_phai_grapheme() {
+    // "👨‍👩‍👧" là 1 grapheme nhưng 5 code point. ky_tu_unicode đếm code point.
+    let d = dodai("👨‍👩‍👧");
+    assert_eq!(d.ky_tu_unicode, 5, "5 code point, khong phai 1 grapheme");
+    assert_eq!(d.byte_utf8, 18); // 4+3+4+3+4
+    assert_eq!(d.don_vi_utf16, 8); // 2+1+2+1+2
+}

@@ -152,6 +152,29 @@ fn context_lech_khong_xoa() {
     assert_eq!(phien.da_hien_thi(), "");
 }
 
+#[test]
+fn cursor_di_chuyen_phat_hien_qua_surrounding_lech() {
+    // Phase 1 verify cursor gián tiếp qua van_ban_truoc_con_tro: không có
+    // trường cursor riêng. Khi cursor di chuyển, surrounding text thay đổi
+    // và runtime phát hiện mismatch (không chỉ qua sự kiện DiChuyenConTro).
+    let mut phien = PhienNhap::moi(ContextId(1));
+    let mut host = HostMoPhong::moi(ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+    assert_eq!(host.van_ban, "á");
+    assert_eq!(host.vi_tri_con_tro, 2); // cursor sau "á"
+
+    // Cursor nhảy về đầu (position 0) — surrounding becomes "".
+    host.vi_tri_con_tro = 0;
+    // Gõ 'f' → Cadence "áf" → "à" (ThayThe: xóa "á", chèn "à").
+    // Surrounding "" không kết thúc bằng "á" → relinquish + ChuyenTiep.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    // Văn bản "á" không bị xóa.
+    assert_eq!(host.van_ban, "á");
+    // Runtime relinquish: không sở hữu suffix cũ.
+    assert_eq!(phien.da_hien_thi(), "");
+}
+
 // --- Blocker 1: surrounding=None không được destructive replace ---
 //
 // Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ
