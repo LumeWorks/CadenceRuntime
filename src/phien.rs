@@ -191,14 +191,14 @@ impl PhienNhap {
             return KetQuaXuLy::ChuyenTiep;
         }
         let noi_dung_moi = self.cadence.ban_chup().noi_dung;
-        // Tính kế hoạch sửa từ da_hien_thi sang rendered mới.
-        let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
-        // Verify-before-mutate: nếu cần xóa, surrounding phải khớp da_hien_thi.
-        if !ke.xoa_truoc.la_rong() && !self.khop_surrounding(boi_canh) {
-            // Surrounding lệch - không delete. Quay lui Cadence, forward.
-            self.cadence = xay_lai_cadence(&self.lich_su);
+        // Verify-before-mutate: nếu runtime đang sở hữu suffix mà surrounding
+        // text lệch da_hien_thi, không tin vị trí con trỏ - relinquish + forward.
+        if !self.da_hien_thi.is_empty() && !self.khop_surrounding(boi_canh) {
+            self.relinquish();
             return KetQuaXuLy::ChuyenTiep;
         }
+        // Tính kế hoạch sửa từ da_hien_thi sang rendered mới.
+        let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
         // Chọn action logic duy nhất (zero-preedit: chỉ Chen/ThayThe/ChuyenTiep).
         let hanh_dong = if ke.la_rong() {
             HanhDong::ChuyenTiep

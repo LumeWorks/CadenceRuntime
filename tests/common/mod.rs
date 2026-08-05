@@ -7,6 +7,9 @@
 //! áp dụng, và ghi lại lịch sử action để test kiểm chứng. Không chỉ ghi log -
 //! sau mỗi action thành công, text trong host phải khớp rendered snapshot runtime
 //! đã chấp nhận.
+//!
+//! Field là `pub` để test chỉnh trạng thái trực tiếp (focus, cursor, văn bản
+//! ngoài runtime). Đây là test fixture, không phải public API của crate.
 
 use cadence_runtime::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
 
@@ -30,6 +33,7 @@ pub struct HostMoPhong {
 
 impl HostMoPhong {
     /// Tạo host rỗng với context và focus mặc định.
+    #[must_use]
     pub fn moi(context_id: ContextId) -> Self {
         Self {
             context_id,
