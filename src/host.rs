@@ -48,7 +48,7 @@ pub enum HanhDong {
 
 /// Kết quả host thực thi một [`HanhDong`].
 ///
-/// Runtime không được coi timeout hoặc lỗi không rõ ràng là [`DaApDung`].
+/// Runtime không được coi timeout hoặc lỗi không rõ ràng là [`KetQuaHost::DaApDung`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KetQuaHost {
     /// Host xác nhận action đã được thực thi đúng contract.
@@ -61,10 +61,8 @@ pub enum KetQuaHost {
 
 /// Seam giữa runtime và môi trường nhập liệu nền tảng.
 ///
-/// Phase 2 adapter Fcitx5 triển khai trait này; Phase 1 chỉ dùng [`HostMoPhong`]
-/// (trong test) để kiểm chứng runtime mà không cần Fcitx.
-///
-/// [`HostMoPhong`]: ../../tests/index.html
+/// Phase 2 adapter Fcitx5 triển khai trait này; Phase 1 chỉ dùng host mô phỏng
+/// trong test (`tests/common/mod.rs`) để kiểm chứng runtime mà không cần Fcitx.
 pub trait Host {
     /// Trả ngữ cảnh nhập hiện tại.
     fn boi_canh(&self) -> BoiCanhNhap;
