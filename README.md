@@ -74,8 +74,8 @@ import Cadence.
 
 ## MSRV
 
-Rust 1.85 cho lõi runtime (đồng bộ với Cadence). GUI Slint (Phase 2) sẽ yêu cầu
-Rust 1.92 — xem commit MSRV riêng.
+Rust 1.92 (do GUI Slint ~1.17). Lõi runtime thuần tương thích 1.85 (đồng bộ
+Cadence), nhưng package cần 1.92 vì feature `app` default.
 
 ## Tài liệu thiết kế
 

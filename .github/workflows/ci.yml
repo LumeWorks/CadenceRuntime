@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, phase-1]
+    branches: [main, phase-1, phase-2-fcitx5]
   pull_request:
 
 env:
@@ -28,25 +28,51 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: Install Fcitx5 dev (cho --all-features)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
-    name: test (${{ matrix.os }}, ${{ matrix.toolchain }})
+    name: test (${{ matrix.toolchain }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        toolchain: [stable, "1.85"]
-    runs-on: ${{ matrix.os }}
+        toolchain: [stable, "1.92"]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
+      - name: Install Fcitx5 dev (cho --all-features)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
       - name: Test all features
         run: cargo test --all-targets --all-features
       - name: Check release
-        run: cargo check --release
+        run: cargo check --release --all-features
+
+  feature-gates:
+    name: feature gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Fcitx5 dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+      - name: no-default-features
+        run: cargo check --no-default-features
+      - name: no-default-features test
+        run: cargo test --no-default-features
+      - name: app only
+        run: cargo check --features app
+      - name: fcitx5 only
+        run: cargo check --no-default-features --features fcitx5
 
   doc:
     name: rustdoc
@@ -56,4 +82,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo doc --no-deps
+      - run: cargo doc --no-deps --all-features
