@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-//! Logic GUI CanType: đọc/ghi cấu hình, bind vào cửa sổ Slint, xử lý callbacks.
+//! Logic GUI CanType: đọc/ghi cấu hình, bind vào cửa sổ Slint + tray, xử lý
+//! callbacks.
 //!
 //! Không sở hữu Rust sessions của Fcitx5; GUI và addon chỉ dùng chung schema
 //! cấu hình (`cau_hinh`). Khi user đổi setting, GUI ghi atomically; addon đọc
@@ -18,28 +19,44 @@ use crate::cau_hinh::{
 
 slint::include_modules!();
 
-/// Chạy GUI CanType. Đọc config, mở cửa sổ, bind callbacks. Trả lỗi platform
-/// nếu Slint không khởi tạo được.
+/// Chạy GUI CanType: cửa sổ chính + tray icon. Đọc config, bind, xử lý
+/// callbacks. Trả lỗi platform nếu Slint không khởi tạo được.
 ///
 /// # Errors
 /// Trả `slint::PlatformError` nếu backend Slint không khởi tạo được.
 pub fn chay() -> Result<(), slint::PlatformError> {
-    let app = App::new()?;
-
-    // Đọc config, bind vào properties.
     let cfg = doc_config();
+
+    // Cửa sổ chính.
+    let app = App::new()?;
     bind_config(&app, &cfg);
 
-    // Callbacks.
+    // Tray icon.
+    let tray = TrayCanType::new()?;
+    tray.set_dang_bat(cfg.dang_bat);
+    tray.set_kieu_go(match cfg.kieu_go {
+        KieuGo::Telex => "telex".into(),
+        KieuGo::Vni => "vni".into(),
+    });
+
+    // --- Callbacks cửa sổ ---
     let app_luu = app.as_weak();
+    let tray_luu = tray.as_weak();
     app.on_luu(move || {
         let app = app_luu.unwrap();
+        let tray = tray_luu.unwrap();
         let cfg = lay_config_tu_ui(&app);
         if let Some(duong_dan) = cau_hinh::duong_dan_config()
             && let Err(e) = cau_hinh::ghi(&duong_dan, &cfg)
         {
             eprintln!("CanType: loi ghi config: {e}");
         }
+        // Sync tray state với window.
+        tray.set_dang_bat(cfg.dang_bat);
+        tray.set_kieu_go(match cfg.kieu_go {
+            KieuGo::Telex => "telex".into(),
+            KieuGo::Vni => "vni".into(),
+        });
     });
 
     let app_mac_dinh = app.as_weak();
@@ -53,9 +70,62 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     app.on_dong(move || {
         let app = app_dong.unwrap();
         let _ = app.window().hide();
+        // Không quit: đóng cửa sổ chỉ ẩn xuống tray.
+    });
+
+    // --- Callbacks tray ---
+    // Click trái tray → show cửa sổ.
+    let app_mo = app.as_weak();
+    tray.on_mo_cua_so(move || {
+        let app = app_mo.unwrap();
+        let _ = app.window().show();
+        app.window().set_minimized(false);
+    });
+
+    // Toggle tiếng Việt từ tray → update window + ghi config.
+    let app_toggle = app.as_weak();
+    let tray_toggle = tray.as_weak();
+    tray.on_toggle_tieng_viet(move || {
+        let app = app_toggle.unwrap();
+        let tray = tray_toggle.unwrap();
+        let mut cfg = lay_config_tu_ui(&app);
+        cfg.dang_bat = !cfg.dang_bat;
+        app.set_dang_bat(cfg.dang_bat);
+        tray.set_dang_bat(cfg.dang_bat);
+        if let Some(duong_dan) = cau_hinh::duong_dan_config()
+            && let Err(e) = cau_hinh::ghi(&duong_dan, &cfg)
+        {
+            eprintln!("CanType: loi ghi config: {e}");
+        }
+    });
+
+    // Đổi kiểu gõ từ tray → update window + ghi config.
+    let app_kg = app.as_weak();
+    let tray_kg = tray.as_weak();
+    tray.on_dat_kieu_go(move |kieu| {
+        let app = app_kg.unwrap();
+        let tray = tray_kg.unwrap();
+        let mut cfg = lay_config_tu_ui(&app);
+        cfg.kieu_go = if kieu.as_str() == "vni" {
+            KieuGo::Vni
+        } else {
+            KieuGo::Telex
+        };
+        app.set_kieu_go(kieu.clone());
+        tray.set_kieu_go(kieu);
+        if let Some(duong_dan) = cau_hinh::duong_dan_config()
+            && let Err(e) = cau_hinh::ghi(&duong_dan, &cfg)
+        {
+            eprintln!("CanType: loi ghi config: {e}");
+        }
+    });
+
+    // Thoát GUI → quit event loop. Addon Fcitx5 vẫn tiếp tục chạy riêng.
+    tray.on_thoat_giao_dien(move || {
         slint::quit_event_loop().ok();
     });
 
+    tray.show()?;
     app.run()
 }
 

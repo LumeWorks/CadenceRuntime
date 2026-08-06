@@ -8,6 +8,56 @@
 import { TabWidget, CheckBox, ComboBox, Switch, Button, HorizontalBox,
          VerticalBox, GroupBox } from "std-widgets.slint";
 
+// Tray icon CanType. Component riêng inherits SystemTrayIcon. Icon V/E
+// (tiếng Việt bật/tắt), menu với toggle + kiểu gõ + mở cửa sổ + thoát GUI.
+export component TrayCanType inherits SystemTrayIcon {
+    // `dang-bat` điều khiển icon + menu. Rust set property này.
+    in property <bool> dang-bat: true;
+    in property <string> kieu-go: "telex";
+    callback mo-cua-so();
+    callback thoat-giao-dien();
+    callback toggle-tieng-viet();
+    callback dat-kieu-go(string);
+
+    icon: root.dang-bat ? @image-url("../assets/tray-v.svg")
+                        : @image-url("../assets/tray-e.svg");
+    tooltip: root.dang-bat ? "CanType - Tiếng Việt" : "CanType - Tiếng Anh";
+    visible: true;
+
+    clicked => { root.mo-cua-so(); }
+
+    Menu {
+        MenuItem {
+            title: root.dang-bat ? "● Tiếng Việt" : "○ Tiếng Việt";
+            activated => { root.toggle-tieng-viet(); }
+        }
+        MenuItem {
+            title: root.dang-bat ? "Tiếng Anh" : "● Tiếng Anh";
+            activated => { root.toggle-tieng-viet(); }
+        }
+        MenuItem { title: "────────────"; enabled: false; }
+        MenuItem {
+            title: "Telex";
+            checked: root.kieu-go == "telex";
+            activated => { root.dat-kieu-go("telex"); }
+        }
+        MenuItem {
+            title: "VNI";
+            checked: root.kieu-go == "vni";
+            activated => { root.dat-kieu-go("vni"); }
+        }
+        MenuItem { title: "────────────"; enabled: false; }
+        MenuItem {
+            title: "Mở CanType";
+            activated => { root.mo-cua-so(); }
+        }
+        MenuItem {
+            title: "Thoát giao diện";
+            activated => { root.thoat-giao-dien(); }
+        }
+    }
+}
+
 export component App inherits Window {
     title: "CanType";
     min-width: 500px;
