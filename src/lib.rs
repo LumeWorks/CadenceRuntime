@@ -14,6 +14,10 @@
 #![warn(missing_docs)]
 
 pub(crate) mod cadence;
+/// Adapter Fcitx5 — logic thuần Rust (không unsafe), luôn compile. Kiểu
+/// `#[repr(C)]` + key mapping + surrounding extraction. Test chạy không cần
+/// Fcitx5 dev.
+pub(crate) mod fcitx5;
 pub mod host;
 pub(crate) mod phien;
 pub(crate) mod sua;

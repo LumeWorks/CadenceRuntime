@@ -160,6 +160,17 @@ impl PhienNhap {
         &self.da_hien_thi
     }
 
+    /// Đặt lại phiên: relinquish composition (đặt lại Cadence, xóa ownership
+    /// suffix, xóa lịch sử, về `Rong`). Không xóa committed text đã trong ứng
+    /// dụng. Dùng cho lifecycle reset/deactivate/focus-out của adapter.
+    ///
+    /// Khác với [`PhienNhap::xu_ly`] với [`SuKienNhap::DatLai`], phương thức này
+    /// relinquish trực tiếp không cần `Host` — không kiểm tra focus/context
+    /// (caller đã biết context cần reset).
+    pub fn dat_lai(&mut self) {
+        self.relinquish();
+    }
+
     /// Xử lý một sự kiện nhập qua host, trả kết quả.
     ///
     /// Đây là entry point duy nhất. Một sự kiện tạo tối đa một lời gọi
