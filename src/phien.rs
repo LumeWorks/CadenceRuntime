@@ -38,7 +38,7 @@ pub enum SuKienNhap {
 pub(crate) enum TrangThaiPhien {
     /// Chưa có composition runtime đang sở hữu.
     Rong,
-    /// CadenceRuntime đang theo dõi committed suffix do nó tạo.
+    /// CanType đang theo dõi committed suffix do nó tạo.
     DangGo,
     /// Runtime không còn chắc ứng dụng hiển thị đúng nội dung dự kiến.
     MatDongBo,

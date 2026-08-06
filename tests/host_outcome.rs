@@ -5,7 +5,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, HanhDong, KetQuaHost, KetQuaXuLy, PhienNhap, SuKienNhap};
+use cantype::{ContextId, HanhDong, KetQuaHost, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
@@ -41,7 +41,7 @@ fn khong_ap_dung_khong_chap_nhan_state_moi() {
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
 
     // Sự kiện không bị nuốt: trả ChuyenTiep (adapter chuyển tiếp phím gốc).
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     // State mới KHÔNG được chấp nhận: da_hien_thi vẫn "á".
     assert_eq!(phien.da_hien_thi(), "á");
     // Host không thay đổi văn bản (KhongPhat không phát).
@@ -71,7 +71,7 @@ fn khong_chac_phien_mat_dong_bo_an_toan() {
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
 
     // Trả MatDongBo.
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::MatDongBo);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::MatDongBo);
     // Phiên mất đồng bộ, da_hien_thi rỗng (không sở hữu suffix cũ).
     assert!(phien.dang_mat_dong_bo());
     assert_eq!(phien.da_hien_thi(), "");

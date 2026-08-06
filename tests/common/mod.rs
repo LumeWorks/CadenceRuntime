@@ -11,7 +11,7 @@
 //! Field là `pub` để test chỉnh trạng thái trực tiếp (focus, cursor, văn bản
 //! ngoài runtime). Đây là test fixture, không phải public API của crate.
 
-use cadence_runtime::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
+use cantype::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
 
 /// Host mô phỏng editor cho test.
 pub struct HostMoPhong {

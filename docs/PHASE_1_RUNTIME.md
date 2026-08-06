@@ -1,6 +1,6 @@
-# CadenceRuntime Phase 1 - thiết kế runtime
+# CanType Phase 1 - thiết kế runtime
 
-Tài liệu này mô tả thiết kế Phase 1 của CadenceRuntime, phản ánh code thật
+Tài liệu này mô tả thiết kế Phase 1 của CanType, phản ánh code thật
 trong `src/`. Không phải kiến trúc tưởng tượng.
 
 ## 1. Mục tiêu
@@ -67,7 +67,7 @@ PhienNhap::xu_ly(host)
 
 ## 4. Trách nhiệm từng module
 
-CadenceRuntime là đúng một library crate, bốn module:
+CanType là đúng một library crate, bốn module:
 
 | Module | Trách nhiệm |
 |---|---|
@@ -210,7 +210,7 @@ path `DaApDung` là O(1) — chỉ push vào `lich_su`. Lịch sử được c�
 giới hạn, runtime relinquish (composition đã commit trong host, runtime chỉ
 ngừng theo dõi suffix).
 
-## 9. Cách CadenceRuntime pin Cadence
+## 9. Cách CanType pin Cadence
 
 `Cargo.toml`:
 

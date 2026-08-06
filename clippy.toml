@@ -1,4 +1,4 @@
-# Cấu hình clippy cho CadenceRuntime.
+# Cấu hình clippy cho CanType.
 # Giữ đồng bộ với Cadence: giới hạn độ phức tạp theo MSRV.
 
 msrv = "1.85"

@@ -1,4 +1,4 @@
-# Cấu hình rustfmt cho CadenceRuntime.
+# Cấu hình rustfmt cho CanType.
 # Giữ đồng bộ với Cadence: mặc định ổn định, không bật định dạng gây xung đột.
 
 edition = "2024"

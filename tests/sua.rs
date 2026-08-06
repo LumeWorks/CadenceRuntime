@@ -7,7 +7,7 @@
 //! thay nhiều ký tự cuối, thay dấu ở giữa từ, Unicode NFC tiếng Việt, surrogate
 //! pair UTF-16, không cắt sai UTF-8 boundary, xóa không vượt đoạn sở hữu.
 
-use cadence_runtime::{DoDaiVanBan, KeHoachSua};
+use cantype::{DoDaiVanBan, KeHoachSua};
 
 fn sua(cu: &str, moi: &str) -> KeHoachSua {
     KeHoachSua::tinh(cu, moi)

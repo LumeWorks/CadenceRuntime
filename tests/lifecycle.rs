@@ -17,7 +17,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, KetQuaXuLy, PhienNhap, SuKienNhap};
+use cantype::{ContextId, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {

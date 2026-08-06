@@ -1,17 +1,17 @@
 [package]
-name = "cadence-runtime"
+name = "cantype"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MPL-2.0"
-description = "Runtime thuần Rust, độc lập nền tảng cho lõi gõ tiếng Việt Cadence"
+description = "CanType - bộ gõ tiếng Việt cho Linux và Windows, dùng chung lõi Cadence"
 readme = "README.md"
-keywords = ["vietnamese", "input", "ime", "telex", "runtime"]
+keywords = ["vietnamese", "input", "ime", "telex", "cantype"]
 categories = ["text-processing", "internationalization"]
-repository = "https://github.com/LumeWorks/CadenceRuntime"
+repository = "https://github.com/LumeWorks/CanType"
 
 [lib]
-name = "cadence_runtime"
+name = "cantype"
 path = "src/lib.rs"
 # `rlib` cho test và dùng nội bộ; `cdylib` cho addon `.so` Fcitx5. Addon chỉ hoàn
 # chỉnh khi build với feature `fcitx5` (compile C++ shim và link Fcitx5Core).

@@ -1,4 +1,4 @@
-# CadenceRuntime Phase 2 - RFC tích hợp Fcitx5
+# CanType Phase 2 - RFC tích hợp Fcitx5
 
 Tài liệu khởi đầu cho Phase 2. Mô tả mục tiêu, ranh giới, và blocker thiết kế
 quan trọng nhất trước khi triển khai. Phiên bản đầy đủ (sơ đồ, ownership,
@@ -70,7 +70,7 @@ verify-before-mutate, không thêm state machine lớn hay pending transaction.
 
 ## 4. Giữ đúng một crate
 
-CadenceRuntime tiếp tục: một repository, một `Cargo.toml`, một package, một
+CanType tiếp tục: một repository, một `Cargo.toml`, một package, một
 library crate. Không workspace, không `crates/`, không subcrate C++ riêng.
 
 Cấu trúc mục tiêu:
@@ -78,7 +78,7 @@ Cấu trúc mục tiêu:
 ```text
 src/{lib,cadence,host,phien,sua,fcitx5,ffi}.rs
 native/{fcitx5.cpp,fcitx5_ffi.h}
-data/{cadence-runtime-addon.conf.in,cadence.conf}
+data/{cantype-addon.conf.in,cadence.conf}
 scripts/{install-user.sh,uninstall-user.sh}
 ```
 

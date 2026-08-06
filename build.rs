@@ -6,8 +6,9 @@
 //!
 //! Khi feature tắt, build.rs không làm gì — lõi Rust thuần, không cần Fcitx5
 //! dev. Entry point chính vẫn là `cargo build` / `cargo test`. Factory symbol
-//! `fcitx_addon_factory_instance` được giữ lại bởi Rust anchor
-//! `cadence_runtime_anchor` trong `src/ffi.rs` (xem `docs/PHASE_2_FCITX5.md`).
+//! `fcitx_addon_factory_instance` (xuất bằng `#[no_mangle]` trong `src/ffi.rs`)
+//! là symbol duy nhất loader Fcitx `dlsym`; nó gọi `cadence_native_factory` của
+//! C++ trả static `AddonFactory*`. Xem `docs/PHASE_2_FCITX5.md`.
 
 fn main() {
     #[cfg(feature = "fcitx5")]

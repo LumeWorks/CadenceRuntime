@@ -7,7 +7,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, HanhDong, KetQuaHost, PhienNhap, SuKienNhap};
+use cantype::{ContextId, HanhDong, KetQuaHost, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 /// Số sự kiện mỗi phiên stress.
@@ -133,7 +133,7 @@ fn stress_khong_chac_phuc_hoi_an_toan() {
         };
         let ket_qua = phien.xu_ly(&mut host, &su_kien);
 
-        if matches!(ket_qua, cadence_runtime::KetQuaXuLy::MatDongBo) {
+        if matches!(ket_qua, cantype::KetQuaXuLy::MatDongBo) {
             // Sau KhongChac: da_hien_thi rỗng, không sở hữu suffix cũ.
             assert_eq!(phien.da_hien_thi(), "");
             assert!(phien.dang_mat_dong_bo());

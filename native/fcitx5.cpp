@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-/// C++ shim Fcitx5 mỏng cho CadenceRuntime.
+/// C++ shim Fcitx5 mỏng cho CanType.
 ///
 /// Chỉ làm platform glue: định nghĩa `InputMethodEngineV2`, đăng ký addon
 /// factory, đăng ký `InputContextProperty`, nhận lifecycle callback, đọc

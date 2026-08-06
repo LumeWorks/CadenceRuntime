@@ -6,7 +6,7 @@
 
 mod common;
 
-use cadence_runtime::{HanhDong, KetQuaXuLy, PhienNhap, SuKienNhap};
+use cantype::{HanhDong, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn nhap(phien: &mut PhienNhap, host: &mut HostMoPhong, su_kien: SuKienNhap) {
@@ -22,8 +22,8 @@ fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
 #[test]
 fn telex_as_thanh_a_end_to_end() {
     // Khớp Cadence `as_thanh_a_sac`: "as" → "á".
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     assert_eq!(host.van_ban, "á");
     assert_eq!(phien.da_hien_thi(), "á");
@@ -33,8 +33,8 @@ fn telex_as_thanh_a_end_to_end() {
 #[test]
 fn telex_tieengs_thanh_tieng_end_to_end() {
     // Khớp Cadence: "tieengs" → "tiếng".
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "tieengs");
     assert_eq!(host.van_ban, "tiếng");
     assert_eq!(phien.da_hien_thi(), "tiếng");
@@ -43,8 +43,8 @@ fn telex_tieengs_thanh_tieng_end_to_end() {
 #[test]
 fn backspace_trong_composition() {
     // Khớp Cadence `backspace_sau_tone_hoan_tac`: "as" → "á", backspace → "a".
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     assert_eq!(host.van_ban, "á");
     nhap(&mut phien, &mut host, SuKienNhap::XoaLui);
@@ -54,8 +54,8 @@ fn backspace_trong_composition() {
 
 #[test]
 fn ascii_khong_bien_doi_end_to_end() {
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "abc123");
     assert_eq!(host.van_ban, "abc123");
     assert_eq!(phien.da_hien_thi(), "abc123");
@@ -64,8 +64,8 @@ fn ascii_khong_bien_doi_end_to_end() {
 #[test]
 fn url_giu_nguyen_end_to_end() {
     // Khớp Cadence corpus Phase 3: URL giữ nguyên, không Telex.
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "https://example.com");
     assert_eq!(host.van_ban, "https://example.com");
 }
@@ -73,8 +73,8 @@ fn url_giu_nguyen_end_to_end() {
 #[test]
 fn ranh_gioi_tu_chen_space() {
     // "as" → "á", rồi space → "á " (composition relinquish, space chèn).
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     nhap(&mut phien, &mut host, SuKienNhap::RanhGioiTu(' '));
     assert_eq!(host.van_ban, "á ");
@@ -85,8 +85,8 @@ fn ranh_gioi_tu_chen_space() {
 #[test]
 fn dat_lai_relinquish_khong_xoa_text() {
     // "as" → "á" (app đã sở hữu). DatLai relinquish, không xóa "á".
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     nhap(&mut phien, &mut host, SuKienNhap::DatLai);
     assert_eq!(host.van_ban, "á");
@@ -96,8 +96,8 @@ fn dat_lai_relinquish_khong_xoa_text() {
 
 #[test]
 fn di_chuyen_con_tro_relinquish() {
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     nhap(&mut phien, &mut host, SuKienNhap::DiChuyenConTro);
     assert_eq!(host.van_ban, "á");
@@ -108,8 +108,8 @@ fn di_chuyen_con_tro_relinquish() {
 fn zero_preedit_moi_action_la_chen_thaythe_chuyentiep() {
     // Bất biến §16: không tồn tại preedit action. Kiểm tra hành vi: mọi action
     // ghi vào history phải là Chen/ThayThe/ChuyenTiep (enum không có nhánh khác).
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "tieengs");
     nhap(&mut phien, &mut host, SuKienNhap::XoaLui);
     nhap(&mut phien, &mut host, SuKienNhap::RanhGioiTu(' '));
@@ -123,8 +123,8 @@ fn zero_preedit_moi_action_la_chen_thaythe_chuyentiep() {
 #[test]
 fn mot_su_kien_toi_da_mot_action_host() {
     // Bất biến §16: một semantic input tạo tối đa một logical host action.
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     let cac_su_kien: &[SuKienNhap] = &[
         SuKienNhap::KyTu('t'),
         SuKienNhap::KyTu('i'),
@@ -155,8 +155,8 @@ fn thaythe_khong_xoa_vuot_da_hien_thi() {
     // Bất biến §16: ThayThe không xóa vượt da_hien_thi. Kiểm chứng chặt: sau
     // mỗi DaApDung, suffix host sở hữu phải khớp da_hien_thi runtime - tức
     // runtime không bao giờ xóa quá đoạn nó tin ứng dụng đang hiển thị.
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     let chuoi = "tieengs";
     for c in chuoi.chars() {
         let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu(c));
@@ -186,8 +186,8 @@ fn thaythe_khong_xoa_vuot_da_hien_thi() {
 
 #[test]
 fn ket_qua_xu_ly_da_ap_dung_tra_dung_bien_the() {
-    let mut phien = PhienNhap::moi(cadence_runtime::ContextId(1));
-    let mut host = HostMoPhong::moi(cadence_runtime::ContextId(1));
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
     assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
 }

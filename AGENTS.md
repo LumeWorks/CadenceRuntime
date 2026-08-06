@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Hướng dẫn cho agent/maintainer làm việc trên CadenceRuntime.
+Hướng dẫn cho agent/maintainer làm việc trên CanType.
 
 ## Phong cách
 

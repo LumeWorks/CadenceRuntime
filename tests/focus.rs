@@ -5,7 +5,7 @@
 
 mod common;
 
-use cadence_runtime::{ContextId, HanhDong, KetQuaXuLy, PhienNhap, SuKienNhap};
+use cantype::{ContextId, HanhDong, KetQuaXuLy, PhienNhap, SuKienNhap};
 use common::HostMoPhong;
 
 fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
@@ -54,7 +54,7 @@ fn focus_thay_doi_khong_xoa_dua_tren_suffix_cu() {
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
 
     // Sự kiện sau focus change phải forward, không gửi ThayThe xóa "á".
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     // Không có action mới (relinquish + forward, không gọi thuc_thi).
     assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
     // Văn bản host không bị xóa.
@@ -73,7 +73,7 @@ fn mat_focus_khong_xoa_dua_tren_suffix_cu() {
 
     host.dang_co_focus = false;
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     assert_eq!(host.van_ban, "á");
     assert_eq!(phien.da_hien_thi(), "");
 }
@@ -95,7 +95,7 @@ fn surrounding_lech_khong_gui_delete() {
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('e'));
 
     // Surrounding "abc" không kết thúc bằng "tie" → forward, không delete.
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
     // Văn bản app không bị runtime thay đổi.
     assert_eq!(host.van_ban, "abc");
@@ -131,7 +131,7 @@ fn con_tro_nhay_giua_van_ban_relinquish() {
     // Cursor nhảy về giữa "á" (byte 0).
     host.vi_tri_con_tro = 0;
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::DiChuyenConTro);
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     assert_eq!(phien.da_hien_thi(), "");
     // Văn bản không bị xóa.
     assert_eq!(host.van_ban, "á");
@@ -147,7 +147,7 @@ fn context_lech_khong_xoa() {
 
     host.context_id = ContextId(99);
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
-    assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
+    assert_eq!(ket_qua, cantype::KetQuaXuLy::ChuyenTiep);
     assert_eq!(host.van_ban, "á");
     assert_eq!(phien.da_hien_thi(), "");
 }

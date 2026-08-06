@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-//! CadenceRuntime - runtime thuần Rust, độc lập nền tảng cho lõi gõ tiếng Việt
-//! Cadence.
+//! CanType - bộ gõ tiếng Việt cho Linux và Windows, dùng chung lõi Cadence.
 //!
 //! Phase 1 dựng nền móng xử lý phiên nhập, tích hợp Cadence, tính kế hoạch sửa
-//! committed text, bảo vệ đồng bộ context và mô phỏng host. Xem
-//! [`docs/PHASE_1_RUNTIME.md`] cho thiết kế đầy đủ.
+//! committed text, bảo vệ đồng bộ context và mô phỏng host. Phase 2 tích hợp
+//! Fcitx5 (Linux) và GUI/tray. Xem [`docs/PHASE_1_RUNTIME.md`] cho thiết kế đầy
+//! đủ.
 //!
-//! [`docs/PHASE_1_RUNTIME.md`]: https://github.com/LumeWorks/CadenceRuntime
+//! [`docs/PHASE_1_RUNTIME.md`]: https://github.com/LumeWorks/CanType
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
