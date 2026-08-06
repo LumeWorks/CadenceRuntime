@@ -11,10 +11,25 @@
 //! C++ trả static `AddonFactory*`. Xem `docs/PHASE_2_FCITX5.md`.
 
 fn main() {
+    #[cfg(feature = "app")]
+    {
+        build_app();
+    }
     #[cfg(feature = "fcitx5")]
     {
         build_fcitx5();
     }
+}
+
+/// Compile `ui/cantype.slint` thành Rust module qua `slint-build`. Module được
+/// nhúng vào binary `cantype` qua `slint::include_modules!()` trong `main.rs`.
+/// Chỉ chạy khi feature `app` bật.
+#[cfg(feature = "app")]
+fn build_app() {
+    slint_build::compile("ui/cantype.slint").expect(
+        "Khong the compile ui/cantype.slint. Kiem tra Slint syntax va file ton tai.",
+    );
+    println!("cargo:rerun-if-changed=ui/cantype.slint");
 }
 
 /// Compile C++ shim và link Fcitx5Core. Chỉ compile khi feature `fcitx5` bật

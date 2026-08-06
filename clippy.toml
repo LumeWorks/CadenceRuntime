@@ -1,4 +1,5 @@
 # Cấu hình clippy cho CanType.
-# Giữ đồng bộ với Cadence: giới hạn độ phức tạp theo MSRV.
+# MSRV đồng bộ với Cargo.toml (1.92 do GUI Slint). Lõi runtime thuần tương thích
+# 1.85 nhưng package cần 1.92.
 
-msrv = "1.85"
+msrv = "1.92"

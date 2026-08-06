@@ -2,7 +2,11 @@
 name = "cantype"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# MSRV CanType = 1.92 do GUI Slint (~1.17). Lõi runtime thuần (boundary Cadence,
+# phien, host, sua) tương thích 1.85 (đồng bộ Cadence), nhưng package cần 1.92
+# vì feature `app` mặc định kéo Slint. Build --no-default-features vẫn cần 1.92
+# vì `rust-version` áp dụng cho cả package. Xem commit MSRV này.
+rust-version = "1.92"
 license = "MPL-2.0"
 description = "CanType - bộ gõ tiếng Việt cho Linux và Windows, dùng chung lõi Cadence"
 readme = "README.md"
@@ -15,9 +19,24 @@ name = "cantype"
 path = "src/lib.rs"
 # `rlib` cho test và dùng nội bộ; `cdylib` cho addon `.so` Fcitx5. Addon chỉ hoàn
 # chỉnh khi build với feature `fcitx5` (compile C++ shim và link Fcitx5Core).
+# Khi build feature `app`, cdylib vẫn tạo (libcantype.so) nhưng không link Slint
+# (Slint chỉ vào binary `cantype`, không vào lib).
 crate-type = ["rlib", "cdylib"]
 
+[[bin]]
+name = "cantype"
+path = "src/main.rs"
+# Binary chỉ build khi feature `app` bật (Slint dep). `required-features` đảm
+# bảo `cargo build` không cố build binary khi thiếu Slint.
+required-features = ["app"]
+
 [dependencies]
+# Slint GUI + tray. Chỉ kéo khi feature `app` bật (default). Dùng default
+# features của Slint (backend-winit + renderer-femtovg cho desktop Linux X11/
+# Wayland). `SystemTrayIcon` có sẵn trong default features. Phiên bản ~1.17
+# yêu cầu Rust 1.92 (MSRV bump ở trên).
+slint = { version = "1.17", optional = true }
+
 # Cadence được pin theo full commit SHA, không theo branch, vì Cadence đang
 # được phát triển song song và `main` có thể thay đổi bất kỳ lúc nào.
 #
@@ -30,7 +49,7 @@ crate-type = ["rlib", "cdylib"]
 [dependencies.cadence]
 package = "cadence-ime"
 git = "https://github.com/LumeWorks/Cadence"
-# Peeled commit của annotated tag `v2026.0.1`/`v2026.1.0` (xem commit này).
+# Peeled commit của annotated tag `v2026.1.0` (xem commit cap nhat Cadence).
 rev = "a5a586334208a4c084e062f1d77657b07ec3d580"
 
 # Build script: compile C++ shim Fcitx5 và link Fcitx5Core. Chỉ dùng khi feature
@@ -38,14 +57,18 @@ rev = "a5a586334208a4c084e062f1d77657b07ec3d580"
 [build-dependencies]
 cc = { version = "1", optional = true }
 pkg-config = { version = "0.3", optional = true }
+# slint-build compile .slint file thành Rust module. Chỉ dùng khi feature `app`.
+slint-build = { version = "1.17", optional = true }
 
 [features]
+# Feature `app` (default): GUI + tray Slint. Binary `cantype` chỉ build khi
+# feature này bật. Addon `.so` không kéo Slint (Slint là optional dep chỉ vào
+# binary).
 # Feature `fcitx5`: bật build C++ shim và link Fcitx5Core thành addon `.so`.
-# Lý do dùng feature (không build mặc định): C++ shim + Fcitx5Core chỉ cần cho
-# addon Fcitx5, không phải cho lõi Rust thuần. `cargo test` mặc định và MSRV
-# check không cần Fcitx5 dev, giữ lõi Rust độc lập nền tảng. CI job Fcitx5 và
-# Rust core (dùng --all-features) cài Fcitx5 dev.
-default = []
+# Không default để `cargo test` mặc định không cần Fcitx5 dev headers.
+# `--all-features` bật cả hai (CI Fcitx5 cài dev headers).
+default = ["app"]
+app = ["dep:slint", "dep:slint-build"]
 fcitx5 = ["dep:cc", "dep:pkg-config"]
 
 [lints.rust]
