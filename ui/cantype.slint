@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-// Cửa sổ chính CanType. Phiên bản tối thiểu cho commit MSRV: chỉ mở window
-// "CanType" 500×400. Tab, settings, tray và binding được thêm ở commit sau.
+// Cửa sổ chính CanType. 500×400, 3 tab (Cơ bản/Phím tắt/Hệ thống), footer
+// [Mặc định][Lưu][Đóng]. Binding config qua in-out properties; callbacks
+// `luu`/`mac-dinh`/`dong` cho Rust xử lý.
+
+import { TabWidget, CheckBox, ComboBox, Switch, Button, HorizontalBox,
+         VerticalBox, GroupBox } from "std-widgets.slint";
 
 export component App inherits Window {
     title: "CanType";
@@ -11,12 +15,172 @@ export component App inherits Window {
     preferred-width: 500px;
     preferred-height: 400px;
 
-    HorizontalLayout {
-        alignment: center;
-        Text {
-            text: "CanType";
-            font-size: 24px;
-            horizontal-alignment: center;
+    // --- In-out properties (config) ---
+    in-out property <bool> dang-bat: true;
+    in-out property <string> kieu-go: "telex";        // "telex" | "vni"
+    in-out property <bool> khoi-dong-cung-he-thong: false;
+
+    // --- In properties (tab Hệ thống, chỉ đọc) ---
+    in property <string> phien-lam-viec: "KDE Plasma · X11";
+    in property <string> framework-nhap-lieu: "Fcitx5";
+    in property <string> trang-thai-addon: "Đã nạp";
+    in property <string> trang-thai-im: "Đang hoạt động";
+    in property <string> che-do-cai-dat: "Development";
+    in property <string> phien-ban-cantype: "0.1.0";
+    in property <string> phien-ban-cadence: "v2026.1.0";
+    in property <string> sha-cadence: "a5a5863";
+    in property <string> trang-thai-tong-quan: "CanType đang hoạt động bình thường";
+    in property <bool> khoe-manh: true;
+
+    // --- Callbacks ---
+    callback luu();
+    callback mac-dinh();
+    callback dong();
+
+    VerticalBox {
+        // --- Header ---
+        HorizontalBox {
+            padding: 12px;
+            Text {
+                text: "CanType";
+                font-size: 18px;
+                font-weight: 700;
+            }
+            Text {
+                text: "Vietnamese typing for Linux";
+                font-size: 12px;
+                vertical-alignment: center;
+                horizontal-alignment: right;
+            }
+        }
+
+        // --- Tabs ---
+        tab-widget := TabWidget {
+            // --- Tab Cơ bản ---
+            Tab {
+                title: "Cơ bản";
+                VerticalBox {
+                    padding: 16px;
+                    spacing: 12px;
+
+                    HorizontalBox {
+                        spacing: 8px;
+                        Text { text: "Tiếng Việt"; font-size: 14px; }
+                        Switch {
+                            checked: root.dang-bat;
+                            toggled => { root.dang-bat = self.checked; }
+                        }
+                    }
+
+                    HorizontalBox {
+                        spacing: 8px;
+                        Text { text: "Bảng mã"; font-size: 14px; }
+                        Text {
+                            text: "Unicode";
+                            font-size: 14px;
+                            color: #555;
+                        }
+                    }
+
+                    HorizontalBox {
+                        spacing: 8px;
+                        Text { text: "Kiểu gõ"; font-size: 14px; }
+                        ComboBox {
+                            model: ["Telex", "VNI"];
+                            current-value: root.kieu-go == "vni" ? "VNI" : "Telex";
+                            selected => {
+                                root.kieu-go = self.current-index == 1 ? "vni" : "telex";
+                            }
+                        }
+                    }
+
+                    GroupBox {
+                        title: "Khởi động";
+                        VerticalBox {
+                            CheckBox {
+                                text: "Khởi động CanType cùng hệ thống";
+                                checked: root.khoi-dong-cung-he-thong;
+                                toggled => {
+                                    root.khoi-dong-cung-he-thong = self.checked;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- Tab Phím tắt ---
+            Tab {
+                title: "Phím tắt";
+                VerticalBox {
+                    padding: 16px;
+                    Text {
+                        text: "Phím tắt toàn hệ thống chưa khả dụng trong bản Alpha.";
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                    Text {
+                        text: "Đổi tiếng Việt / tiếng Anh qua tab Cơ bản hoặc tray.";
+                        font-size: 12px;
+                        color: #555;
+                    }
+                }
+            }
+
+            // --- Tab Hệ thống ---
+            Tab {
+                title: "Hệ thống";
+                VerticalBox {
+                    padding: 16px;
+                    spacing: 6px;
+
+                    Text { text: "Phiên làm việc: " + root.phien-lam-viec; font-size: 13px; }
+                    Text { text: "Framework nhập liệu: " + root.framework-nhap-lieu; font-size: 13px; }
+                    Text { text: "Addon CanType: " + root.trang-thai-addon; font-size: 13px; }
+                    Text { text: "Input method: " + root.trang-thai-im; font-size: 13px; }
+                    Text { text: "Chế độ cài đặt: " + root.che-do-cai-dat; font-size: 13px; }
+                    Text { text: "CanType: " + root.phien-ban-cantype; font-size: 13px; }
+                    Text {
+                        text: "Cadence: " + root.phien-ban-cadence + " · " + root.sha-cadence;
+                        font-size: 13px;
+                    }
+
+                    Rectangle { vertical-stretch: 1; }
+
+                    HorizontalBox {
+                        spacing: 6px;
+                        // Tròn trạng thái: xanh nếu khỏe, đỏ nếu lỗi.
+                        Rectangle {
+                            width: 12px; height: 12px;
+                            border-radius: 6px;
+                            background: root.khoe-manh ? #2e7d32 : #c62828;
+                        }
+                        Text {
+                            text: root.trang-thai-tong-quan;
+                            font-size: 13px;
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Footer ---
+        HorizontalBox {
+            padding: 12px;
+            spacing: 8px;
+            Button {
+                text: "Mặc định";
+                clicked => { root.mac-dinh(); }
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "Lưu";
+                clicked => { root.luu(); }
+            }
+            Button {
+                text: "Đóng";
+                clicked => { root.dong(); }
+            }
         }
     }
 }

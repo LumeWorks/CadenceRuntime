@@ -23,6 +23,9 @@ pub(crate) mod fcitx5;
 pub mod host;
 pub(crate) mod phien;
 pub(crate) mod sua;
+/// Logic GUI CanType (Slint). Chỉ build khi feature `app` bật.
+#[cfg(feature = "app")]
+pub mod ung_dung;
 // FFI boundary với C++ shim Fcitx5. Module duy nhất dùng `unsafe` (allow trong
 // module). Chỉ compile khi feature `fcitx5` bật.
 #[cfg(feature = "fcitx5")]
