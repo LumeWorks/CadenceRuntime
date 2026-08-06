@@ -37,6 +37,7 @@ typedef enum {
     CanTypeKeyEscape = 2,
     CanTypeKeyEnter = 3,
     CanTypeKeyTab = 4,
+    CanTypeKeyDelete = 5,
 } CanTypeKeyDacBiet;
 
 /// Snapshot phím tại thời điểm xử lý. C++ điền từ `KeyEvent`/`Key`.

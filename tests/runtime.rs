@@ -95,6 +95,63 @@ fn dat_lai_relinquish_khong_xoa_text() {
 }
 
 #[test]
+fn delete_rong_chuyentiep_khong_commit() {
+    // Regression: Delete (XK_Delete 0xFFFF → keySymToUTF8 trả U+007F) trên
+    // composition rỗng phải ChuyểnTiep, không commit U+007F. Trước fix,
+    // Delete bị dac_biet=Khac → DEL được commit như ký tự in được.
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
+    let kq = phien.xu_ly(&mut host, &SuKienNhap::DatLai);
+    assert_eq!(kq, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "");
+    assert!(phien.dang_rong());
+    // DatLai relinquish không gửi action — host không nhận gì.
+    assert!(host.lich_su_hanh_dong.is_empty());
+}
+
+#[test]
+fn delete_co_suffix_relinquish_khong_thaythe_khong_xoa_lui() {
+    // Regression: Delete khi đang sở hữu suffix phải relinquish + ChuyểnTiep,
+    // KHÔNG gọi ThayThe và KHÔNG biến thành XoaLui (Backspace). Text đã commit
+    // ("á") phải giữ nguyên.
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+    assert_eq!(host.van_ban, "á");
+    let so_action_truoc = host.lich_su_hanh_dong.len();
+    let kq = phien.xu_ly(&mut host, &SuKienNhap::DatLai);
+    assert_eq!(kq, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "á"); // không xóa text đã commit
+    assert_eq!(phien.da_hien_thi(), ""); // relinquish
+    assert!(phien.dang_rong());
+    // DatLai không gửi action (relinquish không gọi thuc_thi).
+    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
+}
+
+#[test]
+fn delete_roi_go_tiep_khong_dung_state_cu() {
+    // Regression: sau Delete (relinquish), gõ tiếp phải tạo composition mới,
+    // không dùng state composition cũ. Đảm bảo Delete reset sạch state.
+    let mut phien = PhienNhap::moi(cantype::ContextId(1));
+    let mut host = HostMoPhong::moi(cantype::ContextId(1));
+    go_chuoi(&mut phien, &mut host, "as");
+    assert_eq!(host.van_ban, "á");
+    // Delete (DatLai) relinquish composition "á".
+    phien.xu_ly(&mut host, &SuKienNhap::DatLai);
+    assert!(phien.dang_rong());
+    // Gõ "a" tiếp phải là Chen thuần (composition mới), DaApDung.
+    let kq_a = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+    assert_eq!(kq_a, KetQuaXuLy::DaApDung);
+    assert_eq!(host.van_ban, "áa");
+    assert_eq!(phien.da_hien_thi(), "a");
+    // Gõ "s" phải ThayThe "a" → "á" (composition mới), không dùng "á" cũ.
+    let kq_s = phien.xu_ly(&mut host, &SuKienNhap::KyTu('s'));
+    assert_eq!(kq_s, KetQuaXuLy::DaApDung);
+    assert_eq!(host.van_ban, "áá");
+    assert_eq!(phien.da_hien_thi(), "á");
+}
+
+#[test]
 fn di_chuyen_con_tro_relinquish() {
     let mut phien = PhienNhap::moi(cantype::ContextId(1));
     let mut host = HostMoPhong::moi(cantype::ContextId(1));

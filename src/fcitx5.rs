@@ -45,6 +45,9 @@ pub enum CanTypeKeyDacBiet {
     Enter = 3,
     /// Tab.
     Tab = 4,
+    /// Delete (Forward Delete). Không phải Backspace — không đưa U+007F vào
+    /// Cadence; runtime relinquish rồi passthrough để app tự xóa phía trước.
+    Delete = 5,
 }
 
 /// Snapshot phím (khớp `CanTypeKeySnapshot`). C++ điền từ `KeyEvent`/`Key`.
@@ -150,10 +153,12 @@ pub(crate) enum AnhXaPhim {
 /// 5. **Escape** → [`SuKienNhap::DatLai`] — relinquish + passthrough.
 /// 6. **Enter/Tab** → [`SuKienNhap::DatLai`] — relinquish + passthrough (không
 ///    commit Enter/Tab, để app xử lý).
-/// 7. **Cursor move** (arrow/page) → [`SuKienNhap::DiChuyenConTro`].
-/// 8. **Space** → [`SuKienNhap::RanhGioiTu`] — kết thúc composition, chèn space.
-/// 9. **Printable khác** → [`SuKienNhap::KyTu`] — đưa vào Cadence.
-/// 10. **Khác** → [`AnhXaPhim::BoQua`].
+/// 7. **Delete** (forward) → [`SuKienNhap::DatLai`] — relinquish + passthrough
+///    (không biến thành Backspace, không commit U+007F, để app xóa phía trước).
+/// 8. **Cursor move** (arrow/page) → [`SuKienNhap::DiChuyenConTro`].
+/// 9. **Space** → [`SuKienNhap::RanhGioiTu`] — kết thúc composition, chèn space.
+/// 10. **Printable khác** → [`SuKienNhap::KyTu`] — đưa vào Cadence.
+/// 11. **Khác** → [`AnhXaPhim::BoQua`].
 pub(crate) fn anh_xa_phim(key: &PhimRust) -> AnhXaPhim {
     // 1. Release: passthrough.
     if key.is_release {
@@ -167,12 +172,15 @@ pub(crate) fn anh_xa_phim(key: &PhimRust) -> AnhXaPhim {
     if key.has_modifier {
         return AnhXaPhim::BoQua;
     }
-    // 4-6. Phím đặc biệt.
+    // 4-8. Phím đặc biệt.
     match key.dac_biet {
         CanTypeKeyDacBiet::Backspace => return AnhXaPhim::SuKien(SuKienNhap::XoaLui),
         CanTypeKeyDacBiet::Escape => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
         CanTypeKeyDacBiet::Enter => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
         CanTypeKeyDacBiet::Tab => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        // Delete phía trước: relinquish composition rồi passthrough — không
+        // biến thành Backspace (xóa lùi trong Cadence) và không commit U+007F.
+        CanTypeKeyDacBiet::Delete => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
         CanTypeKeyDacBiet::Khac => {}
     }
     // 7. Cursor move: relinquish + passthrough.
@@ -225,4 +233,66 @@ pub(crate) fn chuyen_boi_canh(snapshot: &CanTypeContextSnapshot, text: &str) -> 
 /// Chuyển `u32` sang `usize` (trên nền tảng 32/64-bit đều an toàn).
 fn u32_to_usize(v: u32) -> usize {
     usize::try_from(v).unwrap_or(usize::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit test cho `anh_xa_phim`: ánh xạ phím đặc biệt (đặc biệt Delete).
+
+    use super::*;
+
+    /// Tạo `PhimRust` press mặc định (không modifier, không release).
+    fn phim_press(dac_biet: CanTypeKeyDacBiet, ky_tu: Option<char>) -> PhimRust {
+        PhimRust {
+            is_release: false,
+            is_cursor_move: false,
+            is_modifier: false,
+            has_modifier: false,
+            dac_biet,
+            ky_tu,
+        }
+    }
+
+    /// Delete press → `DatLai` (relinquish + passthrough), KHÔNG `XoaLui`.
+    /// Đảm bảo Delete không bị biến thành Backspace trong Cadence.
+    #[test]
+    fn delete_press_sang_dat_lai_khong_xoa_lui() {
+        let phim = phim_press(CanTypeKeyDacBiet::Delete, None);
+        let kq = anh_xa_phim(&phim);
+        assert_eq!(kq, AnhXaPhim::SuKien(SuKienNhap::DatLai));
+        assert_ne!(kq, AnhXaPhim::SuKien(SuKienNhap::XoaLui));
+    }
+
+    /// Delete release → `BoQua` (passthrough, không động vào phiên).
+    #[test]
+    fn delete_release_sang_bo_qua() {
+        let phim = PhimRust {
+            is_release: true,
+            is_cursor_move: false,
+            is_modifier: false,
+            has_modifier: false,
+            dac_biet: CanTypeKeyDacBiet::Delete,
+            ky_tu: None,
+        };
+        assert_eq!(anh_xa_phim(&phim), AnhXaPhim::BoQua);
+    }
+
+    /// Delete có `ky_tu = Some('\u{7f}')` (U+007F từ keySymToUTF8) vẫn map
+    /// sang `DatLai`, không đưa DEL vào Cadence. Regression: trước fix,
+    /// Delete bị `dac_biet = Khac` → DEL được commit như ký tự in được.
+    #[test]
+    fn delete_voi_utf8_del_van_dat_lai_khong_commit() {
+        let phim = phim_press(CanTypeKeyDacBiet::Delete, Some('\u{7f}'));
+        let kq = anh_xa_phim(&phim);
+        assert_eq!(kq, AnhXaPhim::SuKien(SuKienNhap::DatLai));
+        // Không phải KyTu('\u{7f}') — phải là DatLai.
+        assert_ne!(kq, AnhXaPhim::SuKien(SuKienNhap::KyTu('\u{7f}')));
+    }
+
+    /// Backspace press → `XoaLui` (không bị nhầm với Delete).
+    #[test]
+    fn backspace_press_sang_xoa_lui() {
+        let phim = phim_press(CanTypeKeyDacBiet::Backspace, None);
+        assert_eq!(anh_xa_phim(&phim), AnhXaPhim::SuKien(SuKienNhap::XoaLui));
+    }
 }

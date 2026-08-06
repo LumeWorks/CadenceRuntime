@@ -390,6 +390,13 @@ private:
         switch (sym) {
         case FcitxKey_BackSpace:
             return CanTypeKeyBackspace;
+        case FcitxKey_Delete:
+            // XK_Delete (0xFFFF) → keySymToUTF8 trả U+007F (DEL) — nếu không
+            // phân loại đặc biệt, runtime nhận nó như ký tự in được và commit
+            // DEL vào host, hỏng composition. Delete phía trước con trỏ khác
+            // Backspace (xóa lùi); map sang CanTypeKeyDelete để runtime
+            // relinquish + passthrough (không XoaLui, không commit U+007F).
+            return CanTypeKeyDelete;
         case FcitxKey_Escape:
             return CanTypeKeyEscape;
         case FcitxKey_Return:
