@@ -161,14 +161,24 @@ impl PhienNhap {
     }
 
     /// Đặt lại phiên: relinquish composition (đặt lại Cadence, xóa ownership
-    /// suffix, xóa lịch sử, về `Rong`). Không xóa committed text đã trong ứng
-    /// dụng. Dùng cho lifecycle reset/deactivate/focus-out của adapter.
+    /// suffix, xóa lịch sử, về `Rong`) và xóa focus adoption. Không xóa
+    /// committed text đã trong ứng dụng. Dùng cho lifecycle reset/deactivate/
+    /// focus-out của adapter.
     ///
     /// Khác với [`PhienNhap::xu_ly`] với [`SuKienNhap::DatLai`], phương thức này
     /// relinquish trực tiếp không cần `Host` — không kiểm tra focus/context
     /// (caller đã biết context cần reset).
+    ///
+    /// Xóa `the_he_focus` về `None` có chủ đích: lifecycle event (C++
+    /// activate/deactivate/reset/focus-out) đã xử lý đúng ranh giới; phím kế tiếp
+    /// adopt generation mới từ host và **compose tươi**, không bị forward do
+    /// mismatch (tránh "ăn" phím đầu sau reset/focus-out — vd sau reset, "as"
+    /// phải ra "á" chứ không phải "a" raw rồi "s"). Điều này khác với đường
+    /// [`SuKienNhap::DatLai`] qua [`xu_ly`](Self::xu_ly), nơi gen mismatch mà
+    /// không có lifecycle reset thì forward bảo thủ.
     pub fn dat_lai(&mut self) {
         self.relinquish();
+        self.the_he_focus = None;
     }
 
     /// Xử lý một sự kiện nhập qua host, trả kết quả.
