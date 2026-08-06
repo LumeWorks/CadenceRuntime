@@ -74,6 +74,45 @@ jobs:
       - name: fcitx5 only
         run: cargo check --no-default-features --features fcitx5
 
+  canonical-build:
+    name: canonical build (no Slint in .so)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Fcitx5 dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+      - name: Build addon (.so, target/fcitx)
+        run: |
+          CARGO_TARGET_DIR=target/fcitx \
+          cargo build --release --lib --no-default-features --features fcitx5
+      - name: Build app binary (target/app)
+        run: |
+          CARGO_TARGET_DIR=target/app \
+          cargo build --release --bin cantype --no-default-features --features app
+      - name: Verify .so has no Slint
+        run: |
+          if ldd target/fcitx/release/libcantype.so | grep -i slint; then
+            echo "LOI: .so link Slint" >&2
+            exit 1
+          fi
+          if nm -C target/fcitx/release/libcantype.so | grep -i slint; then
+            echo "LOI: .so co symbol Slint" >&2
+            exit 1
+          fi
+      - name: Verify app has no Fcitx5
+        run: |
+          if ldd target/app/release/cantype | grep -i fcitx; then
+            echo "LOI: app link Fcitx5" >&2
+            exit 1
+          fi
+      - name: Verify .so exports
+        run: |
+          nm -D target/fcitx/release/libcantype.so | grep -E \
+            "cantype_phien_(tao|giai_phong|dat_lai)|cantype_xu_ly_phim|fcitx_addon_factory_instance"
+
   doc:
     name: rustdoc
     runs-on: ubuntu-latest

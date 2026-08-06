@@ -48,7 +48,11 @@ if [[ ! -f "$LIB_DIR/libcantype.so" ]]; then
 fi
 
 # --- Set env dev ---
-export FCITX_ADDON_DIRS="$LIB_DIR"
+# FCITX_ADDON_DIRS phải include cả user dir (libcantype.so) lẫn system dir
+# (frontend xcb/dbus, classicui, ...). Nếu chỉ trỏ user dir, Fcitx5 mất
+# frontend và không nhận phím từ X/Wayland.
+system_addon_dir="/usr/lib/x86_64-linux-gnu/fcitx5"
+export FCITX_ADDON_DIRS="$LIB_DIR:$system_addon_dir"
 echo "FCITX_ADDON_DIRS=$FCITX_ADDON_DIRS"
 
 # --- Kiểm tra fcitx5 đang chạy ---
