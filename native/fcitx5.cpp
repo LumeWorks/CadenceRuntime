@@ -15,6 +15,7 @@
 #include "fcitx5_ffi.h"
 
 #include <fcitx-utils/flags.h>
+#include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/i18n.h>
 #include <fcitx-utils/key.h>
 #include <fcitx-utils/keysym.h>
@@ -40,17 +41,22 @@ namespace {
 constexpr const char *kTenProperty = "cadence-runtime-context";
 
 /// Property per `InputContext`: sở hữu opaque Rust `PhienNhap` handle, context
-/// id riêng, và focus generation. Hai context không chia sẻ `PhienNhap`.
+/// id riêng, focus generation và `active` state. Hai context không chia sẻ
+/// `PhienNhap`.
 ///
-/// Lifecycle: tạo khi context cần state (lazy qua factory), destructor giải
-/// phóng Rust handle đúng một lần. `needCopy()` trả false (không share state
-/// giữa context).
+/// Lifecycle đầy đủ (§4 Phase 2): `activate`/`focus-in` → active=true + bump
+/// generation; `deactivate`/`focus-out` → relinquish + active=false + bump;
+/// `reset` → relinquish + bump (active vẫn true, ic vẫn focus); context
+/// destroy → free Rust handle đúng một lần. Mọi helper idempotent: gọi hai lần
+/// liên tiếp (vd focus-out rồi deactivate) không double-free, không bump vô hạn
+/// (chỉ bump khi `active_` thực sự chuyển, hoặc forced cho `reset`).
+///
+/// `phien` tạo lazy ở `damBaoPhien()` (lần đầu `keyEvent`) để IC không gõ tiếng
+/// Việt không tạo Rust session; watcher FocusOut chỉ tạo shell nhẹ (không
+/// phien) cho các IC khác — chúng bị bỏ qua qua `prop->phien != nullptr`.
 class CadenceProperty : public fcitx::InputContextProperty {
 public:
-    explicit CadenceProperty(uint64_t context_id) : context_id_(context_id) {
-        // Tạo PhienNhap Rust ngay khi property sinh. Handle NULL nếu lỗi.
-        phien = cadence_phien_tao(context_id);
-    }
+    explicit CadenceProperty(uint64_t context_id) : context_id_(context_id) {}
 
     ~CadenceProperty() override {
         if (phien != nullptr) {
@@ -67,29 +73,94 @@ public:
     bool needCopy() const override { return false; }
 
     uint64_t contextId() const { return context_id_; }
+    uint64_t focusGeneration() const { return focus_generation_; }
+    bool active() const { return active_; }
+    bool lastHasFocus() const { return last_has_focus_; }
 
-    /// Cập nhật focus generation khi một focus cycle mới bắt đầu (false→true).
+    /// Đảm bảo Rust `PhienNhap` tồn tại (tạo lazy lần đầu `keyEvent`). Trả
+    /// `false` nếu tạo thất bại (handle NULL). Sau khi đã tạo, gọi lại là
+    /// no-op.
+    bool damBaoPhien() {
+        if (phien == nullptr) {
+            phien = cadence_phien_tao(context_id_);
+        }
+        return phien != nullptr;
+    }
+
+    /// Relinquish composition (đặt lại Rust session). Idempotent: gọi trên
+    /// session rỗng là no-op (`cadence_phien_dat_lai` an toàn với NULL).
+    void relinquish() {
+        if (phien != nullptr) {
+            cadence_phien_dat_lai(phien);
+        }
+    }
+
+    /// Bump focus generation (saturating, không wrap để tránh trùng generation).
+    void bumpGen() {
+        focus_generation_ =
+            (focus_generation_ == UINT64_MAX) ? UINT64_MAX : focus_generation_ + 1;
+    }
+
+    /// Đặt `active_`; bump generation CHỈ khi `active_` thực sự chuyển trạng
+    /// thái. Tránh bump vô hạn khi callback trùng lặp (vd focus-out rồi
+    /// deactivate cùng báo active=false).
+    void datActive(bool co) {
+        if (active_ != co) {
+            active_ = co;
+            bumpGen();
+        }
+    }
+
+    /// Lifecycle `activate`/`focus-in`: relinquish + active=true. Bump chỉ khi
+    /// false→true. Session sạch (relinquish idempotent trên session rỗng).
+    void kichHoat() {
+        relinquish();
+        datActive(true);
+        last_has_focus_ = true;
+    }
+
+    /// Lifecycle `deactivate`/`focus-out`: relinquish + active=false. Bump chỉ
+    /// khi true→false. Idempotent: gọi lại khi đã false → chỉ relinquish no-op.
+    void voHieuHoa() {
+        relinquish();
+        datActive(false);
+        last_has_focus_ = false;
+    }
+
+    /// Lifecycle `reset` (ic vẫn focus): relinquish + forced bump, active vẫn
+    /// true. Forced bump vì reset là ranh giới composition mới trong cùng focus
+    /// cycle; Rust session cần thấy generation mới để treat phím kế tiếp là
+    /// fresh (không tiếp tục composition cũ).
+    void datLai() {
+        relinquish();
+        bumpGen();
+        // active_ giữ nguyên (reset chỉ gọi khi ic focused).
+    }
+
+    /// Cập nhật focus từ `keyEvent` (lazy focus detection). Phát hiện focus-out
+    /// ngay khi nhận phím trong lúc mất focus (hiếm): relinquish + active=false.
+    /// Phát hiện focus-in (false→true): active=true (bump). Trả generation hiện
+    /// tại để Rust đọc ở đầu `xu_ly`.
     uint64_t capNhatFocus(bool has_focus) {
-        if (!last_has_focus_ && has_focus) {
-            // Saturating add: overflow u64 thực tế không đạt, saturate thay vì
-            // wrap để tránh trùng context/focus generation.
-            focus_generation_ =
-                (focus_generation_ == UINT64_MAX) ? UINT64_MAX
-                                                  : focus_generation_ + 1;
+        if (!has_focus && last_has_focus_) {
+            // Đang nhận phím khi mất focus: relinquish ngay, không đợi phím kế.
+            voHieuHoa();
+        } else if (has_focus && !last_has_focus_) {
+            // Focus mới: active=true (bump chỉ khi false→true).
+            datActive(true);
         }
         last_has_focus_ = has_focus;
         return focus_generation_;
     }
 
-    uint64_t focusGeneration() const { return focus_generation_; }
-    bool lastHasFocus() const { return last_has_focus_; }
-
-    /// Opaque Rust PhienNhap handle. NULL nếu `cadence_phien_tao` thất bại.
+    /// Opaque Rust PhienNhap handle. NULL cho đến khi `damBaoPhien()` tạo lần
+    /// đầu (lazy). Destructor free đúng một lần.
     void *phien = nullptr;
 
 private:
     uint64_t context_id_;
     uint64_t focus_generation_ = 0;
+    bool active_ = false;
     bool last_has_focus_ = false;
 };
 
@@ -175,6 +246,37 @@ public:
           }) {
         instance_.inputContextManager().registerProperty(kTenProperty,
                                                           &factory_);
+        // Watch `InputContextFocusOut` để relinquish tường minh khi IC mất
+        // focus, kể cả khi không có phím giữa focus-out và focus-in. Chỉ hành
+        // động trên IC đã có Rust session (`prop->phien != nullptr`); các IC
+        // khác chỉ tạo shell nhẹ (phien lazy) rồi bị bỏ qua. Handler table
+        // entry phải sống cùng engine để callback không bị hủy.
+        focus_out_watcher_ = instance_.watchEvent(
+            fcitx::EventType::InputContextFocusOut,
+            fcitx::EventWatcherPhase::Default,
+            [this](fcitx::Event &event) { xuLyFocusOut(event); });
+    }
+
+    /// `activate`: IC chuyển sang input method này. Relinquish + active=true.
+    void activate(const fcitx::InputMethodEntry & /*entry*/,
+                  fcitx::InputContextEvent &event) override {
+        auto *prop = propertyOf(event);
+        if (prop == nullptr) {
+            return;
+        }
+        prop->kichHoat();
+    }
+
+    /// `deactivate`: IC chuyển sang input method khác. Relinquish + active=
+    /// false. (Override thay vì dựa default `deactivate`→`reset` để set
+    /// active=false tường minh.)
+    void deactivate(const fcitx::InputMethodEntry & /*entry*/,
+                    fcitx::InputContextEvent &event) override {
+        auto *prop = propertyOf(event);
+        if (prop == nullptr) {
+            return;
+        }
+        prop->voHieuHoa();
     }
 
     void keyEvent(const fcitx::InputMethodEntry & /*entry*/,
@@ -185,11 +287,16 @@ public:
         }
         auto *prop =
             static_cast<CadenceProperty *>(ic->property(kTenProperty));
-        if (prop == nullptr || prop->phien == nullptr) {
+        if (prop == nullptr) {
+            return;
+        }
+        // Tạo Rust session lazy lần đầu; nếu thất bại → passthrough (không
+        // nuốt phím).
+        if (!prop->damBaoPhien()) {
             return;
         }
         // Cập nhật focus generation trước khi gọi Rust (Rust kiểm tra ở đầu
-        // xu_ly).
+        // xu_ly). Phát hiện focus-out ngay nếu nhận phím khi mất focus.
         prop->capNhatFocus(ic->hasFocus());
 
         const auto &key = event.key();
@@ -240,19 +347,44 @@ public:
 
     void reset(const fcitx::InputMethodEntry & /*entry*/,
                fcitx::InputContextEvent &event) override {
-        auto *ic = event.inputContext();
-        if (ic == nullptr) {
+        auto *prop = propertyOf(event);
+        if (prop == nullptr) {
             return;
         }
-        auto *prop =
-            static_cast<CadenceProperty *>(ic->property(kTenProperty));
-        if (prop == nullptr || prop->phien == nullptr) {
-            return;
-        }
-        cadence_phien_dat_lai(prop->phien);
+        // reset chỉ gọi khi ic focused (header Fcitx5); active vẫn true.
+        prop->datLai();
     }
 
 private:
+    /// Lấy property từ event, trả `nullptr` nếu ic null. `property()` tạo
+    /// lazy; cho activate/deactivate/reset điều này hợp lý vì ic đang dùng IM
+    /// này.
+    static CadenceProperty *propertyOf(fcitx::InputContextEvent &event) {
+        auto *ic = event.inputContext();
+        if (ic == nullptr) {
+            return nullptr;
+        }
+        return ic->propertyAs<CadenceProperty>(kTenProperty);
+    }
+
+    /// Watcher FocusOut: relinquish IC có Rust session khi mất focus.
+    void xuLyFocusOut(fcitx::Event &event) {
+        if (event.type() != fcitx::EventType::InputContextFocusOut) {
+            return;
+        }
+        auto *ic_event = static_cast<fcitx::InputContextEvent *>(&event);
+        auto *ic = ic_event->inputContext();
+        if (ic == nullptr) {
+            return;
+        }
+        auto *prop = ic->propertyAs<CadenceProperty>(kTenProperty);
+        // Bỏ qua IC chưa có Rust session (chưa gõ tiếng Việt): `phien` lazy.
+        if (prop == nullptr || prop->phien == nullptr) {
+            return;
+        }
+        prop->voHieuHoa();
+    }
+
     /// Ánh xạ keysym sang `CadenceKeyDacBiet`.
     static CadenceKeyDacBiet dacBietTuKeysym(fcitx::KeySym sym) {
         switch (sym) {
@@ -279,6 +411,9 @@ private:
 
     fcitx::Instance &instance_;
     fcitx::FactoryFor<CadenceProperty> factory_;
+    /// Giữ handler FocusOut sống cùng engine (hủy khi engine destruct).
+    std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>>
+        focus_out_watcher_;
     uint64_t next_context_id_ = 1;
 };
 
