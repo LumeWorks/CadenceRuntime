@@ -78,8 +78,8 @@ Cấu trúc mục tiêu:
 ```text
 src/{lib,cadence,host,phien,sua,fcitx5,ffi}.rs
 native/{fcitx5.cpp,fcitx5_ffi.h}
-data/{cantype-addon.conf.in,cadence.conf}
-scripts/{install-user.sh,uninstall-user.sh}
+data/{cantype-addon.conf,cantype-inputmethod.conf}
+scripts/{install-user.sh,uninstall-user.sh,run-fcitx-dev.sh}
 ```
 
 ## 5. Kiến trúc addon
@@ -113,3 +113,35 @@ panic không vượt FFI.
 8. UX trên app hỗ trợ surrounding
 9. hiệu năng
 10. độ phủ app
+
+## 8. Developer install (Phase 2)
+
+Phase 2 cài addon vào thư mục user (`~/.local`) qua `scripts/install-user.sh`.
+System-wide packaging (`/usr/lib/...`, `.deb`, RPM, Nix) chuyển Phase 3.
+
+Artifact CanType:
+
+```text
+~/.local/lib/fcitx5/libcantype.so
+~/.local/share/fcitx5/addon/cantype.conf
+~/.local/share/fcitx5/inputmethod/cantype.conf
+```
+
+Fcitx5 không quét `~/.local/lib/fcitx5/` mặc định — developer phải set
+`FCITX_ADDON_DIRS=~/.local/lib/fcitx5` (script `run-fcitx-dev.sh` làm việc này).
+
+### Cleanup artifact CadenceRuntime cũ
+
+Dự án trước đây tên `CadenceRuntime`; artifact cũ có thể còn trong `~/.local`:
+
+```text
+~/.local/lib/fcitx5/cadence_runtime.so        (crate output cũ, không prefix lib)
+~/.local/lib/fcitx5/libcadence_runtime.so     (dạng prefix lib, nếu có)
+~/.local/share/fcitx5/addon/cadence-runtime.conf
+~/.local/share/fcitx5/inputmethod/cadence-runtime.conf
+```
+
+`scripts/uninstall-user.sh --cleanup-old` và `scripts/install-user.sh
+--cleanup-old` xóa các file này trước khi cài CanType. Chỉ xóa file có tên
+chính xác do dự án cũ tạo — không glob rộng, không xóa addon khác (vd
+`unilume.conf`, `lotus.conf` giữ nguyên).
