@@ -3,10 +3,9 @@
 
 //! Adapter Fcitx5 — logic thuần Rust, không `unsafe`.
 //!
-//! Module chứa ánh xạ `KeyEvent` (snapshot C ABI) sang [`SuKienNhap`] và trích
-//! xuất `BoiCanhNhap` từ snapshot ngữ cảnh. Kiểu `#[repr(C)]` khớp đúng
-//! `native/fcitx5_ffi.h`. Phần `unsafe` (gọi callback C++, deref con trỏ) nằm
-//! trong [`ffi`](crate::ffi).
+//! Module chứa ánh xạ phím sang [`SuKienNhap`] và trích xuất [`BoiCanhNhap`]
+//! từ snapshot ngữ cảnh. Kiểu `#[repr(C)]` khớp `native/fcitx5_ffi.h`. Phần
+//! `unsafe` (đọc con trỏ C++, gọi callback) nằm trong [`ffi`](crate::ffi).
 //!
 //! Module luôn compile (thuần Rust, không phụ thuộc Fcitx) để test key mapping
 //! và surrounding chạy không cần Fcitx5 dev. Khi feature `fcitx5` tắt, các kiểu
@@ -111,6 +110,24 @@ pub struct CadenceHostBang {
     pub thay_the: Option<extern "C" fn(*mut core::ffi::c_void, u32, *const u8, usize) -> i32>,
 }
 
+/// Phím dạng Rust-friendly (không con trỏ). [`ffi`](crate::ffi) chuyển từ
+/// [`CadenceKeySnapshot`] (unsafe) sang kiểu này trước khi gọi [`anh_xa_phim`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PhimRust {
+    /// `true` nếu là key release.
+    pub is_release: bool,
+    /// `true` nếu arrow/page (cursor move).
+    pub is_cursor_move: bool,
+    /// `true` nếu phím modifier thuần (Shift/Ctrl/Alt press).
+    pub is_modifier: bool,
+    /// `true` nếu có Ctrl/Alt/Super/Hyper/Meta (không tính Shift).
+    pub has_modifier: bool,
+    /// Phím đặc biệt.
+    pub dac_biet: CadenceKeyDacBiet,
+    /// Ký tự printable từ `keySymToUTF8`; `None` nếu không printable.
+    pub ky_tu: Option<char>,
+}
+
 /// Kết quả ánh xạ phím: bỏ qua (passthrough, không động vào phiên) hoặc một
 /// sự kiện runtime.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,29 +138,91 @@ pub(crate) enum AnhXaPhim {
     SuKien(SuKienNhap),
 }
 
-/// Ánh xạ `CadenceKeySnapshot` sang [`AnhXaPhim`].
+/// Ánh xạ [`PhimRust`] sang [`AnhXaPhim`].
 ///
-/// Commit này là bản tối thiểu: release → [`AnhXaPhim::BoQua`], mọi phím khác →
-/// [`SuKienNhap::DatLai`] (relinquish + passthrough). Key mapping đầy đủ
-/// (printable, shift, backspace, space, arrow, shortcut, ...) ở commit kế.
-pub(crate) fn anh_xa_phim(key: &CadenceKeySnapshot) -> AnhXaPhim {
-    // Release: không xử lý Cadence, passthrough.
-    if key.is_release != 0 {
+/// Thứ tự kiểm tra:
+/// 1. **Release** → [`AnhXaPhim::BoQua`] — không xử lý phím nhả.
+/// 2. **Modifier-only** (Shift/Ctrl/Alt press thuần) → [`AnhXaPhim::BoQua`] —
+///    không đưa modifier vào Cadence.
+/// 3. **Shortcut** (Ctrl/Alt/Super/Hyper/Meta + key) → [`AnhXaPhim::BoQua`] —
+///    để ứng dụng xử lý shortcut.
+/// 4. **Backspace** → [`SuKienNhap::XoaLui`].
+/// 5. **Escape** → [`SuKienNhap::DatLai`] — relinquish + passthrough.
+/// 6. **Enter/Tab** → [`SuKienNhap::DatLai`] — relinquish + passthrough (không
+///    commit Enter/Tab, để app xử lý).
+/// 7. **Cursor move** (arrow/page) → [`SuKienNhap::DiChuyenConTro`].
+/// 8. **Space** → [`SuKienNhap::RanhGioiTu`] — kết thúc composition, chèn space.
+/// 9. **Printable khác** → [`SuKienNhap::KyTu`] — đưa vào Cadence.
+/// 10. **Khác** → [`AnhXaPhim::BoQua`].
+pub(crate) fn anh_xa_phim(key: &PhimRust) -> AnhXaPhim {
+    // 1. Release: passthrough.
+    if key.is_release {
         return AnhXaPhim::BoQua;
     }
-    // Stub: mọi phím press → DatLai (relinquish composition + passthrough).
-    AnhXaPhim::SuKien(SuKienNhap::DatLai)
+    // 2. Modifier-only press: passthrough (không đưa modifier vào Cadence).
+    if key.is_modifier {
+        return AnhXaPhim::BoQua;
+    }
+    // 3. Shortcut (Ctrl/Alt/Super/Hyper/Meta): passthrough.
+    if key.has_modifier {
+        return AnhXaPhim::BoQua;
+    }
+    // 4-6. Phím đặc biệt.
+    match key.dac_biet {
+        CadenceKeyDacBiet::Backspace => return AnhXaPhim::SuKien(SuKienNhap::XoaLui),
+        CadenceKeyDacBiet::Escape => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CadenceKeyDacBiet::Enter => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CadenceKeyDacBiet::Tab => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CadenceKeyDacBiet::Khac => {}
+    }
+    // 7. Cursor move: relinquish + passthrough.
+    if key.is_cursor_move {
+        return AnhXaPhim::SuKien(SuKienNhap::DiChuyenConTro);
+    }
+    // 8-9. Printable.
+    match key.ky_tu {
+        Some(' ') => AnhXaPhim::SuKien(SuKienNhap::RanhGioiTu(' ')),
+        Some(c) => AnhXaPhim::SuKien(SuKienNhap::KyTu(c)),
+        None => AnhXaPhim::BoQua,
+    }
 }
 
 /// Trích xuất [`BoiCanhNhap`] từ snapshot ngữ cảnh.
 ///
-/// Commit này là bản tối thiểu: surrounding luôn `None`. Trích xuất đầy đủ
-/// (char→byte, selection/invalid/out-of-range, UTF-8) ở commit kế.
-pub(crate) fn chuyen_boi_canh(snapshot: &CadenceContextSnapshot, _text: &str) -> BoiCanhNhap {
+/// `text` là surrounding text UTF-8 (đã đọc an toàn bởi [`ffi`](crate::ffi)).
+/// `cursor`/`anchor` trong snapshot là offset **ký tự** (code point); hàm này
+/// cắt text trước con trỏ: `text[..cursor_byte]` sau khi chuyển offset ký tự
+/// sang offset byte. Nếu surrounding không hợp lệ hoặc cursor ngoài range →
+/// `van_ban_truoc_con_tro = None`.
+pub(crate) fn chuyen_boi_canh(snapshot: &CadenceContextSnapshot, text: &str) -> BoiCanhNhap {
+    let van_ban_truoc_con_tro = if snapshot.surrounding_valid != 0 {
+        // cursor là offset ký tự (code point). Chuyển sang offset byte UTF-8.
+        // Nếu cursor vượt text → None (không verify được).
+        let cursor_byte = text
+            .char_indices()
+            .nth(u32_to_usize(snapshot.cursor))
+            .map(|(byte, _)| byte)
+            .or_else(|| {
+                // cursor == len (ký tự) → byte offset == text.len()
+                if u32_to_usize(snapshot.cursor) == text.chars().count() {
+                    Some(text.len())
+                } else {
+                    None
+                }
+            });
+        cursor_byte.map(|cb| text[..cb].to_string())
+    } else {
+        None
+    };
     BoiCanhNhap {
         context_id: ContextId(snapshot.context_id),
         the_he_focus: snapshot.focus_generation,
         dang_co_focus: snapshot.has_focus != 0,
-        van_ban_truoc_con_tro: None,
+        van_ban_truoc_con_tro,
     }
+}
+
+/// Chuyển `u32` sang `usize` (trên nền tảng 32/64-bit đều an toàn).
+fn u32_to_usize(v: u32) -> usize {
+    usize::try_from(v).unwrap_or(usize::MAX)
 }

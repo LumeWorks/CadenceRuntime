@@ -20,7 +20,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use crate::ContextId;
 use crate::fcitx5::{
     AnhXaPhim, CadenceContextSnapshot, CadenceHostBang, CadenceKeySnapshot, CadenceXuLyKetQua,
-    anh_xa_phim, chuyen_boi_canh,
+    PhimRust, anh_xa_phim, chuyen_boi_canh,
 };
 use crate::host::{BoiCanhNhap, HanhDong, Host, KetQuaHost};
 use crate::phien::{KetQuaXuLy, PhienNhap};
@@ -86,10 +86,28 @@ impl<'a> Host for FcitxHost<'a> {
         chuyen_boi_canh(&snapshot, &text)
     }
 
-    fn thuc_thi(&mut self, _hanh_dong: &HanhDong) -> KetQuaHost {
-        // Commit 4: stub. Insert (Chen) và Replace (ThayThe) thật ở commit kế.
-        // Passthrough: không phát lệnh mutation nào → KhongPhat.
-        KetQuaHost::KhongPhat
+    fn thuc_thi(&mut self, hanh_dong: &HanhDong) -> KetQuaHost {
+        match hanh_dong {
+            HanhDong::Chen(s) => {
+                let Some(cb) = self.bang.chen else {
+                    return KetQuaHost::KhongPhat;
+                };
+                // `cb` là `extern "C" fn` (safe để gọi). `bang.ic` non-null.
+                // Chuỗi UTF-8 truyền qua (ptr, len); C++ copy vào std::string.
+                let ret = cb(self.bang.ic, s.as_ptr(), s.len());
+                chuyen_ket_qua_host(ret)
+            }
+            HanhDong::ThayThe(ke) => {
+                let Some(cb) = self.bang.thay_the else {
+                    return KetQuaHost::KhongPhat;
+                };
+                let xoa_ky_tu = u32::try_from(ke.xoa_truoc.ky_tu_unicode).unwrap_or(u32::MAX);
+                // `ke.chen` là String; truyền (ptr, len). C++ delete rồi commit.
+                let ret = cb(self.bang.ic, xoa_ky_tu, ke.chen.as_ptr(), ke.chen.len());
+                chuyen_ket_qua_host(ret)
+            }
+            HanhDong::ChuyenTiep => KetQuaHost::KhongPhat,
+        }
     }
 }
 
@@ -113,12 +131,42 @@ unsafe fn lay_chuoi_utf8(slice: &crate::fcitx5::CadenceSlice) -> String {
     }
 }
 
-/// Ánh xạ [`KetQuaXuLy`] sang [`CadenceXuLyKetQua`] (C ABI).
+/// Chuyển [`CadenceKeySnapshot`] (C ABI, có con trỏ) sang [`PhimRust`] (thuần
+/// Rust, không con trỏ). Đọc `utf8` slice một lần rồi trích `char` đầu tiên.
+///
+/// # Safety
+///
+/// `key.utf8.ptr` phải hợp lệ cho `key.utf8.len` byte (hoặc null) trong suốt
+/// lời gọi. C++ đảm bảo (std::string sống trong scope `keyEvent`).
+unsafe fn doc_phim(key: &CadenceKeySnapshot) -> PhimRust {
+    let utf8 = unsafe { lay_chuoi_utf8(&key.utf8) };
+    let ky_tu = utf8.chars().next();
+    PhimRust {
+        is_release: key.is_release != 0,
+        is_cursor_move: key.is_cursor_move != 0,
+        is_modifier: key.is_modifier != 0,
+        has_modifier: key.has_modifier != 0,
+        dac_biet: key.dac_biet,
+        ky_tu,
+    }
+}
+
+/// Ánh xả [`KetQuaXuLy`] sang [`CadenceXuLyKetQua`] (C ABI).
 fn chuyen_ket_qua_xu_ly(kq: KetQuaXuLy) -> CadenceXuLyKetQua {
     match kq {
         KetQuaXuLy::DaApDung => CadenceXuLyKetQua::DaApDung,
         KetQuaXuLy::ChuyenTiep => CadenceXuLyKetQua::ChuyenTiep,
         KetQuaXuLy::MatDongBo => CadenceXuLyKetQua::MatDongBo,
+    }
+}
+
+/// Ánh xạ giá trị trả về của callback C++ sang [`KetQuaHost`].
+/// 0 = DaPhat, 1 = KhongPhat, 2 = KhongChac. Khác → KhongChac (an toàn).
+fn chuyen_ket_qua_host(ret: i32) -> KetQuaHost {
+    match ret {
+        0 => KetQuaHost::DaPhat,
+        1 => KetQuaHost::KhongPhat,
+        _ => KetQuaHost::KhongChac,
     }
 }
 
@@ -209,7 +257,10 @@ fn xu_ly_phim_noi_bo(
     let key_ref: &CadenceKeySnapshot = unsafe { &*key };
     let bang_ref: &CadenceHostBang = unsafe { &*bang };
 
-    match anh_xa_phim(key_ref) {
+    // SAFETY: `key_ref.utf8.ptr` hợp lệ trong scope `keyEvent` (C++ borrow
+    // std::string). `doc_phim` đọc slice một lần, copy ra `PhimRust`.
+    let phim = unsafe { doc_phim(key_ref) };
+    match anh_xa_phim(&phim) {
         AnhXaPhim::BoQua => CadenceXuLyKetQua::ChuyenTiep,
         AnhXaPhim::SuKien(su_kien) => {
             let Some(mut host) = FcitxHost::moi(bang_ref) else {
