@@ -31,6 +31,19 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     let app = App::new()?;
     bind_config(&app, &cfg);
 
+    // Thu thập trạng thái hệ thống (chỉ 1 lần khi GUI mở, không mỗi frame).
+    let thong_tin = crate::he_thong::thu_thap();
+    app.set_phien_lam_viec(thong_tin.phien_lam_viec.into());
+    app.set_framework_nhap_lieu(thong_tin.framework_nhap_lieu.into());
+    app.set_trang_thai_addon(thong_tin.trang_thai_addon.into());
+    app.set_trang_thai_im(thong_tin.trang_thai_im.into());
+    app.set_che_do_cai_dat(thong_tin.che_do_cai_dat.into());
+    app.set_phien_ban_cantype(thong_tin.phien_ban_cantype.into());
+    app.set_phien_ban_cadence(thong_tin.phien_ban_cadence.into());
+    app.set_sha_cadence(thong_tin.sha_cadence.into());
+    app.set_trang_thai_tong_quan(thong_tin.trang_thai_tong_quan.into());
+    app.set_khoe_manh(thong_tin.trang_thai == crate::he_thong::TrangThaiTichHop::HoatDong);
+
     // Tray icon.
     let tray = TrayCanType::new()?;
     tray.set_dang_bat(cfg.dang_bat);
@@ -123,6 +136,20 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     // Thoát GUI → quit event loop. Addon Fcitx5 vẫn tiếp tục chạy riêng.
     tray.on_thoat_giao_dien(move || {
         slint::quit_event_loop().ok();
+    });
+
+    // Kiểm tra lại trạng thái hệ thống (tab Hệ thống).
+    let app_kt = app.as_weak();
+    app.on_kiem_tra_lai(move || {
+        let app = app_kt.unwrap();
+        let thong_tin = crate::he_thong::thu_thap();
+        app.set_phien_lam_viec(thong_tin.phien_lam_viec.into());
+        app.set_framework_nhap_lieu(thong_tin.framework_nhap_lieu.into());
+        app.set_trang_thai_addon(thong_tin.trang_thai_addon.into());
+        app.set_trang_thai_im(thong_tin.trang_thai_im.into());
+        app.set_che_do_cai_dat(thong_tin.che_do_cai_dat.into());
+        app.set_trang_thai_tong_quan(thong_tin.trang_thai_tong_quan.into());
+        app.set_khoe_manh(thong_tin.trang_thai == crate::he_thong::TrangThaiTichHop::HoatDong);
     });
 
     tray.show()?;

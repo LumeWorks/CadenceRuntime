@@ -20,6 +20,9 @@ pub mod cau_hinh;
 /// `#[repr(C)]` + key mapping + surrounding extraction. Test chạy không cần
 /// Fcitx5 dev.
 pub(crate) mod fcitx5;
+/// Trạng thái tích hợp Fcitx5 — thu thập khi GUI mở hoặc user bấm "Kiểm tra lại".
+#[cfg(feature = "app")]
+pub mod he_thong;
 pub mod host;
 pub(crate) mod phien;
 pub(crate) mod sua;

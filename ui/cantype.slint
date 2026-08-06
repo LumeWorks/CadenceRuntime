@@ -86,6 +86,7 @@ export component App inherits Window {
     callback luu();
     callback mac-dinh();
     callback dong();
+    callback kiem-tra-lai();
 
     VerticalBox {
         // --- Header ---
@@ -208,6 +209,15 @@ export component App inherits Window {
                         Text {
                             text: root.trang-thai-tong-quan;
                             font-size: 13px;
+                        }
+                    }
+
+                    HorizontalBox {
+                        spacing: 8px;
+                        padding-top: 8px;
+                        Button {
+                            text: "Kiểm tra lại";
+                            clicked => { root.kiem-tra-lai(); }
                         }
                     }
                 }
