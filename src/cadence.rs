@@ -90,3 +90,65 @@ fn chuyen_ket_qua(ket_qua: KetQuaXuLy) -> KetQuaCadence {
         KetQuaXuLy::ChapNhan { .. } => KetQuaCadence::CapNhat,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Regression test cho boundary `cadence.rs`: pin trực tiếp API surface của
+    //! Cadence mà `PhienCadence` dùng, để một thay đổi API Cadence (xóa/đổi tên
+    //! method, đổi `KetQuaXuLy`) bị bắt tại boundary sớm nhất, thay vì chỉ thấy
+    //! qua test runtime. Các test end-to-end trong `tests/runtime.rs` vẫn là
+    //! nguồn sự thật chính về hành vi Telex.
+
+    use super::*;
+
+    /// Tạo phiên, gõ "as", kiểm tra biến đổi Telex "as" → "á" qua boundary.
+    #[test]
+    fn phien_cadence_telex_as_thanh_a_sac() {
+        let mut phien = PhienCadence::moi();
+        assert_eq!(phien.them_ky_tu('a'), KetQuaCadence::CapNhat);
+        assert_eq!(phien.them_ky_tu('s'), KetQuaCadence::CapNhat);
+        assert!(!phien.dang_trong());
+        assert_eq!(phien.ban_chup().noi_dung, "á");
+    }
+
+    /// Backspace hoàn tác một thao tác raw: "á" → "a" qua boundary.
+    #[test]
+    fn phien_cadence_backspace_hoan_tac_tone() {
+        let mut phien = PhienCadence::moi();
+        phien.them_ky_tu('a');
+        phien.them_ky_tu('s');
+        assert_eq!(phien.ban_chup().noi_dung, "á");
+        assert_eq!(phien.xoa_lui(), KetQuaCadence::CapNhat);
+        assert_eq!(phien.ban_chup().noi_dung, "a");
+    }
+
+    /// `dat_lai` relinquish: phiên rỗng, snapshot rỗng.
+    #[test]
+    fn phien_cadence_dat_lai_rong() {
+        let mut phien = PhienCadence::moi();
+        phien.them_ky_tu('a');
+        phien.them_ky_tu('s');
+        assert!(!phien.dang_trong());
+        phien.dat_lai();
+        assert!(phien.dang_trong());
+        assert_eq!(phien.ban_chup().noi_dung, "");
+    }
+
+    /// Pin ánh xạ `KetQuaXuLy` của Cadence sang `KetQuaCadence`: cả ba nhánh,
+    /// kể cả `ChapNhan` (commit ngầm nếu Cadence thêm) phải về `CapNhat` để
+    /// runtime không nuốt state.
+    #[test]
+    fn chuyen_ket_qua_ba_nhanh() {
+        assert_eq!(
+            chuyen_ket_qua(KetQuaXuLy::KhongDoi),
+            KetQuaCadence::KhongDoi
+        );
+        assert_eq!(chuyen_ket_qua(KetQuaXuLy::CapNhat), KetQuaCadence::CapNhat);
+        assert_eq!(
+            chuyen_ket_qua(KetQuaXuLy::ChapNhan {
+                noi_dung: String::from("x")
+            }),
+            KetQuaCadence::CapNhat
+        );
+    }
+}

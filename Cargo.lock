@@ -4,8 +4,8 @@ version = 4
 
 [[package]]
 name = "cadence-ime"
-version = "0.1.0"
-source = "git+https://github.com/LumeWorks/Cadence?rev=52b3bb49403245e68a5f5291b04741953fd666b6#52b3bb49403245e68a5f5291b04741953fd666b6"
+version = "2026.1.0"
+source = "git+https://github.com/LumeWorks/Cadence?rev=a5a586334208a4c084e062f1d77657b07ec3d580#a5a586334208a4c084e062f1d77657b07ec3d580"
 dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
