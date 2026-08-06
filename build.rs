@@ -26,9 +26,8 @@ fn main() {
 /// Chỉ chạy khi feature `app` bật.
 #[cfg(feature = "app")]
 fn build_app() {
-    slint_build::compile("ui/cantype.slint").expect(
-        "Khong the compile ui/cantype.slint. Kiem tra Slint syntax va file ton tai.",
-    );
+    slint_build::compile("ui/cantype.slint")
+        .expect("Khong the compile ui/cantype.slint. Kiem tra Slint syntax va file ton tai.");
     println!("cargo:rerun-if-changed=ui/cantype.slint");
 }
 
