@@ -37,6 +37,12 @@ required-features = ["app"]
 # yêu cầu Rust 1.92 (MSRV bump ở trên).
 slint = { version = "1.17", optional = true }
 
+# serde + toml: đọc/ghi config.toml schema versioned (§11). serde cho derive
+# Serialize/Deserialize; toml cho format. Cả hai là direct dependency (không
+# qua Cadence) vì cấu hình là state CanType, không phải Cadence.
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+
 # Cadence được pin theo full commit SHA, không theo branch, vì Cadence đang
 # được phát triển song song và `main` có thể thay đổi bất kỳ lúc nào.
 #

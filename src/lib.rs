@@ -14,6 +14,8 @@
 #![warn(missing_docs)]
 
 pub(crate) mod cadence;
+/// Cấu hình CanType, schema versioned, dùng chung cho GUI và addon.
+pub mod cau_hinh;
 /// Adapter Fcitx5 — logic thuần Rust (không unsafe), luôn compile. Kiểu
 /// `#[repr(C)]` + key mapping + surrounding extraction. Test chạy không cần
 /// Fcitx5 dev.
