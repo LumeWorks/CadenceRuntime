@@ -125,7 +125,7 @@ fn stress_khong_chac_phuc_hoi_an_toan() {
         host.ket_qua_ke_tiep = if i % 100 == 50 {
             KetQuaHost::KhongChac
         } else {
-            KetQuaHost::DaApDung
+            KetQuaHost::DaPhat
         };
         let su_kien = match i % 6 {
             0..=4 => SuKienNhap::KyTu(POOL[i % POOL.len()]),

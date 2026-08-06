@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-//! Test outcome host: DaApDung, KhongApDung, KhongChac (§18).
+//! Test outcome host: DaPhat, KhongPhat, KhongChac (§18).
 
 mod common;
 
@@ -30,13 +30,13 @@ fn da_ap_dung_state_tien_va_text_khop_rendered() {
 
 #[test]
 fn khong_ap_dung_khong_chap_nhan_state_moi() {
-    // "as" → "á". Sau đó host trả KhongApDung cho 'd'.
+    // "as" → "á". Sau đó host trả KhongPhat cho 'd'.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
     assert_eq!(phien.da_hien_thi(), "á");
 
-    host.ket_qua_ke_tiep = KetQuaHost::KhongApDung;
+    host.ket_qua_ke_tiep = KetQuaHost::KhongPhat;
     let so_action_truoc = host.lich_su_hanh_dong.len();
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
 
@@ -44,7 +44,7 @@ fn khong_ap_dung_khong_chap_nhan_state_moi() {
     assert_eq!(ket_qua, cadence_runtime::KetQuaXuLy::ChuyenTiep);
     // State mới KHÔNG được chấp nhận: da_hien_thi vẫn "á".
     assert_eq!(phien.da_hien_thi(), "á");
-    // Host không thay đổi văn bản (KhongApDung không áp dụng).
+    // Host không thay đổi văn bản (KhongPhat không phát).
     assert_eq!(host.van_ban, "á");
     // Không có destructive retry: đúng một action thử, không retry tự động.
     assert_eq!(
@@ -53,8 +53,8 @@ fn khong_ap_dung_khong_chap_nhan_state_moi() {
         "khong duoc retry destructive"
     );
 
-    // State cũ vẫn hợp lệ: tiếp tục gõ 'f' (DaApDung) → "à" (Cadence asf → à).
-    host.ket_qua_ke_tiep = KetQuaHost::DaApDung;
+    // State cũ vẫn hợp lệ: tiếp tục gõ 'f' (DaPhat) → "à" (Cadence asf → à).
+    host.ket_qua_ke_tiep = KetQuaHost::DaPhat;
     phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
     assert_eq!(host.van_ban, "à");
     assert_eq!(phien.da_hien_thi(), "à");
@@ -78,7 +78,7 @@ fn khong_chac_phien_mat_dong_bo_an_toan() {
     // Host giữ nguyên "á" (KhongChac không áp dụng, text đã commit không mất).
 
     // Sự kiện kế tiếp KHÔNG delete dựa state cũ: da_hien_thi rỗng nên chỉ Chen.
-    host.ket_qua_ke_tiep = KetQuaHost::DaApDung;
+    host.ket_qua_ke_tiep = KetQuaHost::DaPhat;
     let so_action_truoc = host.lich_su_hanh_dong.len();
     phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
 
@@ -152,14 +152,14 @@ fn khong_chac_tra_mat_dong_bo_khong_chuyen_tiep() {
 
 #[test]
 fn khong_ap_dung_dung_mot_action_khong_retry_destructive() {
-    // KhongApDung → ChuyenTiep (adapter forward), đúng MỘT thuc_thi call
+    // KhongPhat → ChuyenTiep (adapter forward), đúng MỘT thuc_thi call
     // (không retry ThayThe). Sự kiện chưa xuất hiện qua action → forward
     // đúng một lần qua phím gốc = tổng đúng một lần.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     go_chuoi(&mut phien, &mut host, "as");
 
-    host.ket_qua_ke_tiep = KetQuaHost::KhongApDung;
+    host.ket_qua_ke_tiep = KetQuaHost::KhongPhat;
     let so_action_truoc = host.lich_su_hanh_dong.len();
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('f'));
 
@@ -171,7 +171,7 @@ fn khong_ap_dung_dung_mot_action_khong_retry_destructive() {
 
 #[test]
 fn da_ap_dung_khong_tra_chuyen_tiep() {
-    // DaApDung → DaApDung (KHÔNG phải ChuyenTiep).
+    // DaPhat → DaApDung (KHÔNG phải ChuyenTiep).
     // Adapter không được forward phím gốc — text đã xuất hiện đúng một lần.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
@@ -207,7 +207,7 @@ fn khong_chac_host_ap_dung_thaythe_runtime_khong_delete_cu() {
     assert_eq!(host.van_ban, "à");
 
     // Sự kiện kế tiếp phải Chen (không ThayThe xóa "à" cũ).
-    host.ket_qua_ke_tiep = KetQuaHost::DaApDung;
+    host.ket_qua_ke_tiep = KetQuaHost::DaPhat;
     host.khong_chac_ap_dung = false;
     let so_action = host.lich_su_hanh_dong.len();
     phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));

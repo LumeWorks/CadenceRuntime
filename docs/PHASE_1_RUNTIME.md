@@ -13,7 +13,7 @@ Phase 1 dựng **nền móng bất biến** của runtime thuần Rust, độc l
 * Host abstraction tối thiểu và host mô phỏng để test.
 * Zero-preedit: mọi chữ đi qua committed `Chen` hoặc `ThayThe`, không vẽ chữ tạm.
 * Verify-before-mutate: không xóa dựa state cũ khi context/focus/surrounding lệch.
-* State Cadence mới chỉ được chấp nhận khi host xác nhận `DaApDung`.
+* State Cadence mới chỉ được chấp nhận khi host xác nhận `DaPhat`.
 * Host uncertain (`KhongChac`) làm phiên mất đồng bộ an toàn.
 
 Mục tiêu lớn hơn: runtime nhỏ đến mức một maintainer đọc hết trong một buổi, nhưng
@@ -60,8 +60,8 @@ PhienNhap::xu_ly(host)
   ├─ host.thuc_thi(hanh_dong) → KetQuaHost
   │
   └─ match KetQuaHost:
-        DaApDung   → chấp nhận state, da_hien_thi = moi, ghi lich_su
-        KhongApDung → quay lui Cadence (replay lich_su), forward sự kiện
+        DaPhat    → chấp nhận state, da_hien_thi = moi, ghi lich_su
+        KhongPhat  → quay lui Cadence (replay lich_su), forward sự kiện
         KhongChac   → reset, MatDongBo, không delete dựa state cũ
 ```
 
@@ -121,20 +121,20 @@ Không được tồn tại đường "host đã nhận một phần → runtime
 
 ```rust
 pub enum KetQuaHost {
-    DaApDung,
-    KhongApDung,
+    DaPhat,
+    KhongPhat,
     KhongChac,
 }
 ```
 
 | Kết quả | Semantics | Runtime xử lý | Adapter |
 |---|---|---|---|
-| `DaApDung` | Host xác nhận action thực thi đúng contract. | Chấp nhận state Cadence mới. `da_hien_thi = noi_dung_moi`. Ghi sự kiện vào `lich_su`. `trang_thai = Rong` nếu Cadence rỗng, `DangGo` nếu còn. | **Không** chuyển tiếp phím gốc. Text đã xuất hiện đúng một lần. |
-| `KhongApDung` | Action chắc chắn chưa thay đổi văn bản. | Không chấp nhận state mới. Quay lui Cadence về trước sự kiện qua `xay_lai_cadence(lich_su)`. `da_hien_thi` và `lich_su` giữ nguyên. Không retry destructive. | **Chuyển tiếp** phím gốc. Sự kiện chưa xuất hiện, forward đúng một lần. |
+| `DaPhat` | Host đã phát toàn bộ action theo đúng thứ tự vào nền tảng. Không có app ACK. | Chấp nhận state Cadence mới (có điều kiện). `da_hien_thi = noi_dung_moi`. Ghi sự kiện vào `lich_su`. `trang_thai = Rong` nếu Cadence rỗng, `DangGo` nếu còn. | **Không** chuyển tiếp phím gốc. Text đã được phát đúng một lần. |
+| `KhongPhat` | Host chắc chắn chưa phát lệnh text mutation nào. | Không chấp nhận state mới. Quay lui Cadence về trước sự kiện qua `xay_lai_cadence(lich_su)`. `da_hien_thi` và `lich_su` giữ nguyên. Không retry destructive. | **Chuyển tiếp** phím gốc. Sự kiện chưa xuất hiện, forward đúng một lần. |
 | `KhongChac` | Không biết ứng dụng nhận một phần hay toàn bộ. | `cadence.dat_lai()`, xóa `da_hien_thi`, xóa `lich_su`, `trang_thai = MatDongBo`. Không delete dựa state cũ. Không replay mù phím đã xử lý. | **Không** chuyển tiếp phím gốc. Sự kiện có thể đã xuất hiện (tối đa một lần). |
 
-Runtime không bao giờ coi timeout/lỗi không rõ là `DaApDung`. Runtime không retry
-destructive action sau `KhongApDung`, và không replay mù phím đã xử lý sau
+Runtime không bao giờ coi timeout/lỗi không rõ là `DaPhat`. Runtime không retry
+destructive action sau `KhongPhat`, và không replay mù phím đã xử lý sau
 `KhongChac`. Fake host (`tests/common/mod.rs`) phân biệt ba kết quả và mô phỏng
 cả trường hợp `KhongChac` có áp dụng lẫn không áp dụng.
 
@@ -189,11 +189,11 @@ advance state khi host chưa thành công, runtime dùng **replay lịch sử**:
   đã được host chấp nhận.
 * Khi áp dụng một sự kiện mới, runtime mutate `PhienCadence` tại chỗ, tính action,
   gửi host.
-* Nếu host `KhongApDung`: runtime dựng lại `PhienCadence` qua
+* Nếu host `KhongPhat`: runtime dựng lại `PhienCadence` qua
   `xay_lai_cadence(&lich_su)` (replay các sự kiện đã chấp nhận, không kể sự kiện
   thất bại). State quay về điểm trước sự kiện. Sự kiện thất bại không vào
   `lich_su`.
-* Nếu host `DaApDung`: sự kiện được push vào `lich_su`. State mới được giữ.
+* Nếu host `DaPhat`: sự kiện được push vào `lich_su`. State mới được giữ.
 * Nếu host `KhongChac`: `dat_lai()` Cadence, xóa `lich_su`. Mất đồng bộ an toàn.
 
 Lịch sử chỉ chứa `KyTu`/`XoaLui` (xây composition). Các sự kiện relinquish
@@ -203,7 +203,7 @@ hiện trong đó.
 Cách này không sửa Cadence (không cần trait `Clone` hay transaction). Chỉ cần
 `PhienCadence::moi()` + `them_ky_tu`/`xoa_lui` đã có.
 
-Replay chỉ chạy trên đường thất bại (`KhongApDung`), không phải mỗi phím. Hot
+Replay chỉ chạy trên đường thất bại (`KhongPhat`), không phải mỗi phím. Hot
 path `DaApDung` là O(1) — chỉ push vào `lich_su`. Lịch sử được cắt tại
 `RanhGioiTu`/`DiChuyenConTro`/`DatLai`/`KhongChac`/focus change, và giới hạn
 256 sự kiện (`GIOI_HAN_LICH_SU`) để chống input độc hại. Khi `lich_su` vượt
@@ -258,7 +258,7 @@ Nếu Cadence thay đổi API, mục tiêu là chỉ cần sửa `cadence.rs`.
 * **Cadence rebuild O(n) mỗi phím.** Cadence nội bộ dựng lại snapshot từ lịch
   sử sau mỗi `them_ky_tu`/`xoa_lui` (thiết kế Cadence, không phải runtime).
   Composition dài → chi phí tăng. Runtime replay (`xay_lai_cadence`) chỉ chạy
-  khi `KhongApDung`, không phải mỗi phím. Lịch sử bị cắt bởi `DatLai`/relinquish
+  khi `KhongPhat`, không phải mỗi phím. Lịch sử bị cắt bởi `DatLai`/relinquish
   thường xuyên trong thực tế và giới hạn 256 sự kiện để chống input độc hại.
 * **Chưa có `SessionManager`.** Phase 1 một `PhienNhap` per context; adapter tự
   giữ map context → `PhienNhap`. Test tạo hai `PhienNhap` để chứng minh độc lập.

@@ -8,7 +8,7 @@
 //! qua [`PhienCadence`](crate::cadence::PhienCadence), so sánh `da_hien_thi`
 //! với snapshot mới qua [`KeHoachSua`](crate::sua::KeHoachSua), rồi gửi đúng
 //! một [`HanhDong`](crate::HanhDong) tới host. State Cadence mới chỉ được chấp
-//! nhận khi host xác nhận [`DaApDung`](crate::KetQuaHost::DaApDung).
+//! nhận khi host xác nhận [`DaPhat`](crate::KetQuaHost::DaPhat).
 
 use crate::cadence::{KetQuaCadence, PhienCadence};
 use crate::host::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
@@ -70,25 +70,30 @@ const GIOI_HAN_LICH_SU: usize = 256;
 /// ứng dụng**. Ba biến thể below chỉ đạo adapter Phase 2 cách xử lý sự kiện
 /// gốc:
 ///
-/// * [`DaApDung`]: runtime đã gửi action và host xác nhận áp dụng. Adapter
-///   **không** chuyển tiếp phím gốc — text đã xuất hiện đúng một lần.
-/// * [`ChuyenTiep`]: runtime không áp dụng text change nào (host từ chối,
+/// * [`DaApDung`]: runtime đã gửi action và host đã phát ([`DaPhat`]). Adapter
+///   **không** chuyển tiếp phím gốc — text đã được phát đúng một lần (không có
+///   app ACK, nhưng runtime verify lại surrounding ở phím kế tiếp).
+/// * [`ChuyenTiep`]: runtime không áp dụng text change nào (host [`KhongPhat`],
 ///   relinquish, hoặc Cadence không đổi). Adapter **nên** chuyển tiếp phím
 ///   gốc — sự kiện sẽ xuất hiện đúng một lần qua phím gốc.
-/// * [`MatDongBo`]: host không chắc đã áp dụng một phần hay toàn bộ. Adapter
+/// * [`MatDongBo`]: host [`KhongChac`] (có thể đã phát một phần). Adapter
 ///   **không** chuyển tiếp phím gốc — sự kiện có thể đã xuất hiện (tối đa một
 ///   lần), chuyển tiếp sẽ tạo bản sao.
 ///
 /// Một sự kiện tạo tối đa một lời gọi `host.thuc_thi`. Runtime không bao giờ
-/// retry destructive action sau `KhongApDung`, và không replay mù phím đã xử
-/// lý sau `KhongChac`.
+/// retry destructive action sau [`KhongPhat`](crate::KetQuaHost::KhongPhat),
+/// và không replay mù phím đã xử lý sau
+/// [`KhongChac`](crate::KetQuaHost::KhongChac).
 ///
+/// [`DaPhat`]: crate::KetQuaHost::DaPhat
+/// [`KhongPhat`]: crate::KetQuaHost::KhongPhat
+/// [`KhongChac`]: crate::KetQuaHost::KhongChac
 /// [`DaApDung`]: KetQuaXuLy::DaApDung
 /// [`ChuyenTiep`]: KetQuaXuLy::ChuyenTiep
 /// [`MatDongBo`]: KetQuaXuLy::MatDongBo
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KetQuaXuLy {
-    /// Action đã gửi và host xác nhận [`DaApDung`](crate::KetQuaHost::DaApDung);
+    /// Action đã gửi và host đã phát [`DaPhat`](crate::KetQuaHost::DaPhat);
     /// state đã tiến. Adapter không chuyển tiếp phím gốc.
     DaApDung,
     /// Runtime không áp dụng text change. Adapter nên chuyển tiếp phím gốc.
@@ -262,7 +267,7 @@ impl PhienNhap {
         // Gửi tới host - một sự kiện tối đa một lời gọi thuc_thi.
         let ket_qua_host = host.thuc_thi(&hanh_dong);
         match ket_qua_host {
-            KetQuaHost::DaApDung => {
+            KetQuaHost::DaPhat => {
                 self.da_hien_thi = noi_dung_moi;
                 self.lich_su.push(match su_kien {
                     SuKienXay::KyTu(c) => SuKienNhapDaChapNhan::KyTu(c),
@@ -275,7 +280,7 @@ impl PhienNhap {
                 };
                 KetQuaXuLy::DaApDung
             }
-            KetQuaHost::KhongApDung => {
+            KetQuaHost::KhongPhat => {
                 // Không chấp nhận state mới. Quay lui Cadence về trước sự kiện.
                 self.cadence = xay_lai_cadence(&self.lich_su);
                 #[cfg(test)]
@@ -304,11 +309,11 @@ impl PhienNhap {
         let hanh_dong = HanhDong::Chen(ky_tu.to_string());
         let ket_qua_host = host.thuc_thi(&hanh_dong);
         match ket_qua_host {
-            KetQuaHost::DaApDung => {
+            KetQuaHost::DaPhat => {
                 self.relinquish();
                 KetQuaXuLy::DaApDung
             }
-            KetQuaHost::KhongApDung => {
+            KetQuaHost::KhongPhat => {
                 // Ký tự ranh giới không được chèn - forward.
                 KetQuaXuLy::ChuyenTiep
             }
@@ -409,7 +414,7 @@ mod test_noi_bo {
             Self {
                 context_id,
                 van_ban: String::new(),
-                ket_qua: KetQuaHost::DaApDung,
+                ket_qua: KetQuaHost::DaPhat,
             }
         }
     }
@@ -440,7 +445,7 @@ mod test_noi_bo {
 
     #[test]
     fn hot_path_da_ap_dung_khong_replay() {
-        // Chứng minh: DaApDung chỉ tốn 1 operation Cadence mỗi phím (không
+        // Chứng minh: DaPhat chỉ tốn 1 operation Cadence mỗi phím (không
         // replay). 50 phím → đúng 50 operation.
         let mut phien = PhienNhap::moi(ContextId(1));
         let mut host = HostDonGian::moi(ContextId(1));
@@ -456,8 +461,8 @@ mod test_noi_bo {
 
     #[test]
     fn khong_ap_dung_replay_tang_chi_phi() {
-        // Chứng minh: KhongApDung tốn thêm N operation replay (N = lich_su).
-        // 50 DaApDung → 50 op. 1 KhongApDung → +1 (event) +50 (replay) = 101.
+        // Chứng minh: KhongPhat tốn thêm N operation replay (N = lich_su).
+        // 50 DaPhat → 50 op. 1 KhongPhat → +1 (event) +50 (replay) = 101.
         let mut phien = PhienNhap::moi(ContextId(1));
         let mut host = HostDonGian::moi(ContextId(1));
         for _ in 0..50 {
@@ -465,7 +470,7 @@ mod test_noi_bo {
         }
         assert_eq!(phien.so_op_cadence(), 50);
 
-        host.ket_qua = KetQuaHost::KhongApDung;
+        host.ket_qua = KetQuaHost::KhongPhat;
         phien.xu_ly(&mut host, &SuKienNhap::KyTu('k'));
         assert_eq!(
             phien.so_op_cadence(),

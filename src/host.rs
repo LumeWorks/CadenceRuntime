@@ -54,25 +54,31 @@ pub enum HanhDong {
 
 /// Kết quả host thực thi một [`HanhDong`].
 ///
-/// Runtime không được coi timeout hoặc lỗi không rõ ràng là
-/// [`DaApDung`](KetQuaHost::DaApDung). Mỗi biến thể có ngữ nghĩa chặt:
+/// Tên biến thể trung thực về việc **phát** lệnh vào nền tảng, không tuyên bố
+/// ứng dụng đã ACK: Fcitx (và đa số host IM) không trả kết quả từ ứng dụng cho
+/// `commitString`/`deleteSurroundingText`. Runtime không được coi timeout hoặc
+/// lỗi không rõ ràng là [`DaPhat`](KetQuaHost::DaPhat). Mỗi biến thể có ngữ
+/// nghĩa chặt:
 ///
-/// * [`DaApDung`](KetQuaHost::DaApDung): host chắc chắn đã áp dụng toàn bộ
-///   action đúng contract. Runtime chấp nhận state mới.
-/// * [`KhongApDung`](KetQuaHost::KhongApDung): host chắc chắn **chưa** thay
-///   đổi văn bản. Runtime quay lui state Cadence, trả
+/// * [`DaPhat`](KetQuaHost::DaPhat): host đã phát toàn bộ lệnh của logical
+///   action theo đúng thứ tự vào nền tảng. Runtime được giữ state mới **có
+///   điều kiện**: trước mọi action tiếp theo khi `da_hien_thi` không rỗng,
+///   surrounding phải được verify lại. Không mô tả là app đã ACK.
+/// * [`KhongPhat`](KetQuaHost::KhongPhat): host chắc chắn **chưa** phát lệnh
+///   text mutation nào. Runtime quay lui state Cadence, trả
 ///   [`ChuyenTiep`](crate::KetQuaXuLy::ChuyenTiep).
-/// * [`KhongChac`](KetQuaHost::KhongChac): host không biết đã nhận một phần
-///   hay toàn bộ. Runtime reset an toàn, trả
+/// * [`KhongChac`](KetQuaHost::KhongChac): có khả năng chỉ một phần action đã
+///   được phát. Runtime reset an toàn, trả
 ///   [`MatDongBo`](crate::KetQuaXuLy::MatDongBo). Adapter không chuyển tiếp
 ///   phím gốc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KetQuaHost {
-    /// Host xác nhận action đã được thực thi đúng contract.
-    DaApDung,
-    /// Action chắc chắn chưa thay đổi văn bản (ví dụ bị từ chối).
-    KhongApDung,
-    /// Không thể biết ứng dụng đã nhận một phần hay toàn bộ action.
+    /// Host đã phát toàn bộ logical action theo đúng thứ tự vào nền tảng.
+    /// Không có nghĩa ứng dụng đã ACK.
+    DaPhat,
+    /// Host chắc chắn chưa phát bất kỳ phần nào của action.
+    KhongPhat,
+    /// Có khả năng chỉ một phần action đã được phát.
     KhongChac,
 }
 

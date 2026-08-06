@@ -47,14 +47,14 @@ impl HostMoPhong {
             dang_co_focus: true,
             van_ban: String::new(),
             vi_tri_con_tro: 0,
-            ket_qua_ke_tiep: KetQuaHost::DaApDung,
+            ket_qua_ke_tiep: KetQuaHost::DaPhat,
             lich_su_hanh_dong: Vec::new(),
             cung_cap_surrounding: true,
             khong_chac_ap_dung: false,
         }
     }
 
-    /// Áp dụng action lên văn bản (chỉ khi DaApDung hoặc KhongChac có flag).
+    /// Áp dụng action lên văn bản (chỉ khi DaPhat hoặc KhongChac có flag).
     fn ap_dung(&mut self, hanh_dong: &HanhDong) {
         match hanh_dong {
             HanhDong::Chen(s) => {
@@ -94,8 +94,8 @@ impl Host for HostMoPhong {
         let ket_qua = self.ket_qua_ke_tiep;
         self.lich_su_hanh_dong.push(hanh_dong.clone());
         match ket_qua {
-            KetQuaHost::DaApDung => self.ap_dung(hanh_dong),
-            KetQuaHost::KhongApDung => {}
+            KetQuaHost::DaPhat => self.ap_dung(hanh_dong),
+            KetQuaHost::KhongPhat => {}
             KetQuaHost::KhongChac => {
                 if self.khong_chac_ap_dung {
                     self.ap_dung(hanh_dong);
