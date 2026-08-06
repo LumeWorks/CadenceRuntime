@@ -13,6 +13,9 @@ repository = "https://github.com/LumeWorks/CadenceRuntime"
 [lib]
 name = "cadence_runtime"
 path = "src/lib.rs"
+# `rlib` cho test và dùng nội bộ; `cdylib` cho addon `.so` Fcitx5. Addon chỉ hoàn
+# chỉnh khi build với feature `fcitx5` (compile C++ shim và link Fcitx5Core).
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 # Cadence được pin theo full commit SHA, không theo branch, vì Cadence đang
@@ -23,8 +26,24 @@ package = "cadence-ime"
 git = "https://github.com/LumeWorks/Cadence"
 rev = "52b3bb49403245e68a5f5291b04741953fd666b6"
 
+# Build script: compile C++ shim Fcitx5 và link Fcitx5Core. Chỉ dùng khi feature
+# `fcitx5` bật; `cargo test` mặc định (không feature) không cần Fcitx5 dev.
+[build-dependencies]
+cc = { version = "1", optional = true }
+pkg-config = { version = "0.3", optional = true }
+
+[features]
+# Feature `fcitx5`: bật build C++ shim và link Fcitx5Core thành addon `.so`.
+# Lý do dùng feature (không build mặc định): C++ shim + Fcitx5Core chỉ cần cho
+# addon Fcitx5, không phải cho lõi Rust thuần. `cargo test` mặc định và MSRV
+# check không cần Fcitx5 dev, giữ lõi Rust độc lập nền tảng. CI job Fcitx5 và
+# Rust core (dùng --all-features) cài Fcitx5 dev.
+default = []
+fcitx5 = ["dep:cc", "dep:pkg-config"]
+
 [lints.rust]
-unsafe_code = "forbid"
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
 missing_docs = "warn"
 unused_must_use = "deny"
 

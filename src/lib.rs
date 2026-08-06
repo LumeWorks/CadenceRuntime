@@ -10,13 +10,17 @@
 //!
 //! [`docs/PHASE_1_RUNTIME.md`]: https://github.com/LumeWorks/CadenceRuntime
 
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![warn(missing_docs)]
 
 pub(crate) mod cadence;
 pub mod host;
 pub(crate) mod phien;
 pub(crate) mod sua;
+// FFI boundary với C++ shim Fcitx5. Module duy nhất dùng `unsafe` (allow trong
+// module). Chỉ compile khi feature `fcitx5` bật.
+#[cfg(feature = "fcitx5")]
+pub(crate) mod ffi;
 
 pub use host::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
 pub use phien::{KetQuaXuLy, PhienNhap, SuKienNhap};
