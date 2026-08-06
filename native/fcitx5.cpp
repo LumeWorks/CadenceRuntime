@@ -38,7 +38,7 @@
 namespace {
 
 /// Tên property đăng ký với `InputContextManager`.
-constexpr const char *kTenProperty = "cadence-runtime-context";
+constexpr const char *kTenProperty = "cantype-context";
 
 /// Property per `InputContext`: sở hữu opaque Rust `PhienNhap` handle, context
 /// id riêng, focus generation và `active` state. Hai context không chia sẻ
@@ -54,21 +54,21 @@ constexpr const char *kTenProperty = "cadence-runtime-context";
 /// `phien` tạo lazy ở `damBaoPhien()` (lần đầu `keyEvent`) để IC không gõ tiếng
 /// Việt không tạo Rust session; watcher FocusOut chỉ tạo shell nhẹ (không
 /// phien) cho các IC khác — chúng bị bỏ qua qua `prop->phien != nullptr`.
-class CadenceProperty : public fcitx::InputContextProperty {
+class CanTypeProperty : public fcitx::InputContextProperty {
 public:
-    explicit CadenceProperty(uint64_t context_id) : context_id_(context_id) {}
+    explicit CanTypeProperty(uint64_t context_id) : context_id_(context_id) {}
 
-    ~CadenceProperty() override {
+    ~CanTypeProperty() override {
         if (phien != nullptr) {
-            cadence_phien_giai_phong(phien);
+            cantype_phien_giai_phong(phien);
             phien = nullptr;
         }
     }
 
-    CadenceProperty(const CadenceProperty &) = delete;
-    CadenceProperty &operator=(const CadenceProperty &) = delete;
-    CadenceProperty(CadenceProperty &&) = delete;
-    CadenceProperty &operator=(CadenceProperty &&) = delete;
+    CanTypeProperty(const CanTypeProperty &) = delete;
+    CanTypeProperty &operator=(const CanTypeProperty &) = delete;
+    CanTypeProperty(CanTypeProperty &&) = delete;
+    CanTypeProperty &operator=(CanTypeProperty &&) = delete;
 
     bool needCopy() const override { return false; }
 
@@ -82,16 +82,16 @@ public:
     /// no-op.
     bool damBaoPhien() {
         if (phien == nullptr) {
-            phien = cadence_phien_tao(context_id_);
+            phien = cantype_phien_tao(context_id_);
         }
         return phien != nullptr;
     }
 
     /// Relinquish composition (đặt lại Rust session). Idempotent: gọi trên
-    /// session rỗng là no-op (`cadence_phien_dat_lai` an toàn với NULL).
+    /// session rỗng là no-op (`cantype_phien_dat_lai` an toàn với NULL).
     void relinquish() {
         if (phien != nullptr) {
-            cadence_phien_dat_lai(phien);
+            cantype_phien_dat_lai(phien);
         }
     }
 
@@ -165,17 +165,17 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Callback C++ cho Rust `Host` qua `CadenceHostBang`.
+// Callback C++ cho Rust `Host` qua `CanTypeHostBang`.
 // ---------------------------------------------------------------------------
 
-/// Điền `CadenceContextSnapshot` từ `InputContext`. Trả 0=ok, nonzero=lỗi.
+/// Điền `CanTypeContextSnapshot` từ `InputContext`. Trả 0=ok, nonzero=lỗi.
 extern "C" int lay_boi_canh_cb(void *ic_ptr,
-                                CadenceContextSnapshot *out) {
+                                CanTypeContextSnapshot *out) {
     auto *ic = static_cast<fcitx::InputContext *>(ic_ptr);
     if (ic == nullptr || out == nullptr) {
         return 1;
     }
-    auto *prop = static_cast<CadenceProperty *>(ic->property(kTenProperty));
+    auto *prop = static_cast<CanTypeProperty *>(ic->property(kTenProperty));
     if (prop == nullptr) {
         return 1;
     }
@@ -237,12 +237,12 @@ extern "C" int thay_the_cb(void *ic_ptr, uint32_t xoa_ky_tu,
 // ---------------------------------------------------------------------------
 
 /// Engine Fcitx5: triển khai `InputMethodEngineV2`.
-class CadenceEngine : public fcitx::InputMethodEngineV2 {
+class CanTypeEngine : public fcitx::InputMethodEngineV2 {
 public:
-    CadenceEngine(fcitx::Instance &instance)
+    CanTypeEngine(fcitx::Instance &instance)
         : instance_(instance),
           factory_([this](fcitx::InputContext & /*ic*/) {
-              return new CadenceProperty(nextContextId());
+              return new CanTypeProperty(nextContextId());
           }) {
         instance_.inputContextManager().registerProperty(kTenProperty,
                                                           &factory_);
@@ -286,7 +286,7 @@ public:
             return;
         }
         auto *prop =
-            static_cast<CadenceProperty *>(ic->property(kTenProperty));
+            static_cast<CanTypeProperty *>(ic->property(kTenProperty));
         if (prop == nullptr) {
             return;
         }
@@ -302,7 +302,7 @@ public:
         const auto &key = event.key();
 
         // Key snapshot: điền từ KeyEvent/Key.
-        CadenceKeySnapshot snapshot;
+        CanTypeKeySnapshot snapshot;
         snapshot.is_release = event.isRelease() ? 1 : 0;
         snapshot.is_cursor_move = key.isCursorMove() ? 1 : 0;
         snapshot.is_modifier = key.isModifier() ? 1 : 0;
@@ -322,24 +322,24 @@ public:
         snapshot.utf8.len = utf8.size();
 
         // Host bang: callback table + ic.
-        CadenceHostBang bang;
+        CanTypeHostBang bang;
         bang.ic = ic;
         bang.lay_boi_canh = lay_boi_canh_cb;
         bang.chen = chen_cb;
         bang.thay_the = thay_the_cb;
 
-        auto ket_qua = cadence_xu_ly_phim(prop->phien, &snapshot, &bang);
+        auto ket_qua = cantype_xu_ly_phim(prop->phien, &snapshot, &bang);
 
         switch (ket_qua) {
-        case CadenceXuLy_DaApDung:
+        case CanTypeXuLy_DaApDung:
             // Runtime đã phát text. Không forward phím gốc.
             event.filterAndAccept();
             break;
-        case CadenceXuLy_MatDongBo:
+        case CanTypeXuLy_MatDongBo:
             // Host có thể đã phát một phần. Không forward (tránh bản sao).
             event.filterAndAccept();
             break;
-        case CadenceXuLy_ChuyenTiep:
+        case CanTypeXuLy_ChuyenTiep:
             // Passthrough: forward phím gốc (không filter, không accept).
             break;
         }
@@ -359,12 +359,12 @@ private:
     /// Lấy property từ event, trả `nullptr` nếu ic null. `property()` tạo
     /// lazy; cho activate/deactivate/reset điều này hợp lý vì ic đang dùng IM
     /// này.
-    static CadenceProperty *propertyOf(fcitx::InputContextEvent &event) {
+    static CanTypeProperty *propertyOf(fcitx::InputContextEvent &event) {
         auto *ic = event.inputContext();
         if (ic == nullptr) {
             return nullptr;
         }
-        return ic->propertyAs<CadenceProperty>(kTenProperty);
+        return ic->propertyAs<CanTypeProperty>(kTenProperty);
     }
 
     /// Watcher FocusOut: relinquish IC có Rust session khi mất focus.
@@ -377,7 +377,7 @@ private:
         if (ic == nullptr) {
             return;
         }
-        auto *prop = ic->propertyAs<CadenceProperty>(kTenProperty);
+        auto *prop = ic->propertyAs<CanTypeProperty>(kTenProperty);
         // Bỏ qua IC chưa có Rust session (chưa gõ tiếng Việt): `phien` lazy.
         if (prop == nullptr || prop->phien == nullptr) {
             return;
@@ -385,19 +385,19 @@ private:
         prop->voHieuHoa();
     }
 
-    /// Ánh xạ keysym sang `CadenceKeyDacBiet`.
-    static CadenceKeyDacBiet dacBietTuKeysym(fcitx::KeySym sym) {
+    /// Ánh xạ keysym sang `CanTypeKeyDacBiet`.
+    static CanTypeKeyDacBiet dacBietTuKeysym(fcitx::KeySym sym) {
         switch (sym) {
         case FcitxKey_BackSpace:
-            return CadenceKeyBackspace;
+            return CanTypeKeyBackspace;
         case FcitxKey_Escape:
-            return CadenceKeyEscape;
+            return CanTypeKeyEscape;
         case FcitxKey_Return:
-            return CadenceKeyEnter;
+            return CanTypeKeyEnter;
         case FcitxKey_Tab:
-            return CadenceKeyTab;
+            return CanTypeKeyTab;
         default:
-            return CadenceKeyKhac;
+            return CanTypeKeyKhac;
         }
     }
 
@@ -410,7 +410,7 @@ private:
     }
 
     fcitx::Instance &instance_;
-    fcitx::FactoryFor<CadenceProperty> factory_;
+    fcitx::FactoryFor<CanTypeProperty> factory_;
     /// Giữ handler FocusOut sống cùng engine (hủy khi engine destruct).
     std::unique_ptr<fcitx::HandlerTableEntry<fcitx::EventHandler>>
         focus_out_watcher_;
@@ -418,20 +418,20 @@ private:
 };
 
 /// Addon factory: tạo engine khi addon được nạp.
-class CadenceFactory : public fcitx::AddonFactory {
+class CanTypeFactory : public fcitx::AddonFactory {
 public:
     fcitx::AddonInstance *create(fcitx::AddonManager *manager) override {
-        return new CadenceEngine(*manager->instance());
+        return new CanTypeEngine(*manager->instance());
     }
 };
 
 } // namespace
 
-/// Trả static `CadenceFactory`. Rust `fcitx_addon_factory_instance` (xuất bằng
+/// Trả static `CanTypeFactory`. Rust `fcitx_addon_factory_instance` (xuất bằng
 /// `#[no_mangle]` trong `src/ffi.rs`) gọi hàm này. Function-local static,
 /// thread-safe init (C++11). Không dùng `FCITX_ADDON_FACTORY` vì Rust cdylib
 /// chỉ export symbol `#[no_mangle]` Rust (version script).
-extern "C" void *cadence_native_factory(void) {
-    static CadenceFactory factory;
+extern "C" void *cantype_native_factory(void) {
+    static CanTypeFactory factory;
     return &factory;
 }

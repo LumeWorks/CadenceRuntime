@@ -7,10 +7,10 @@
 //! `// SAFETY:`. C ABI nhỏ, POD-only. Hàm Rust xuất dùng `catch_unwind`; panic
 //! không vượt FFI. Callback C++ không truyền exception sang Rust (contract C++).
 //!
-//! Ownership: `cadence_phien_tao` trả `Box<PhienNhap>` thành raw pointer (leak
-//! có chủ đích); `cadence_phien_giai_phong` tái lập và drop. Mỗi handle đúng
-//! một lần (C++ đặt `nullptr` sau khi free). `cadence_xu_ly_phim` mượn
-//! `&mut PhienNhap` + `&CadenceKeySnapshot` + `&CadenceHostBang` trong một lời
+//! Ownership: `cantype_phien_tao` trả `Box<PhienNhap>` thành raw pointer (leak
+//! có chủ đích); `cantype_phien_giai_phong` tái lập và drop. Mỗi handle đúng
+//! một lần (C++ đặt `nullptr` sau khi free). `cantype_xu_ly_phim` mượn
+//! `&mut PhienNhap` + `&CanTypeKeySnapshot` + `&CanTypeHostBang` trong một lời
 //! gọi; con trỏ C++ phải hợp lệ trong suốt lời gọi.
 
 #![allow(unsafe_code)]
@@ -19,24 +19,24 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::ContextId;
 use crate::fcitx5::{
-    AnhXaPhim, CadenceContextSnapshot, CadenceHostBang, CadenceKeySnapshot, CadenceXuLyKetQua,
+    AnhXaPhim, CanTypeContextSnapshot, CanTypeHostBang, CanTypeKeySnapshot, CanTypeXuLyKetQua,
     PhimRust, anh_xa_phim, chuyen_boi_canh,
 };
 use crate::host::{BoiCanhNhap, HanhDong, Host, KetQuaHost};
 use crate::phien::{KetQuaXuLy, PhienNhap};
 
-/// Host Fcitx5: triển khai [`Host`] qua bảng callback C++ (`CadenceHostBang`).
+/// Host Fcitx5: triển khai [`Host`] qua bảng callback C++ (`CanTypeHostBang`).
 ///
 /// Mỗi lời gọi `boi_canh`/`thuc_thi` gọi callback C++ (unsafe, gói trong hàm
 /// an toàn này). Không sở hữu `ic` hay callback; mượn trong thời gian sống của
 /// `xu_ly_phim`.
 pub(crate) struct FcitxHost<'a> {
-    bang: &'a CadenceHostBang,
+    bang: &'a CanTypeHostBang,
 }
 
 impl<'a> FcitxHost<'a> {
     /// Tạo host từ bảng callback. Trả `None` nếu bảng hoặc `ic` null.
-    pub(crate) fn moi(bang: &'a CadenceHostBang) -> Option<Self> {
+    pub(crate) fn moi(bang: &'a CanTypeHostBang) -> Option<Self> {
         if bang.ic.is_null() {
             return None;
         }
@@ -45,7 +45,7 @@ impl<'a> FcitxHost<'a> {
 
     /// Gọi callback `lay_boi_canh`, điền snapshot. Trả `false` nếu callback
     /// null hoặc lỗi.
-    fn lay_boi_canh(&self, snapshot: &mut CadenceContextSnapshot) -> bool {
+    fn lay_boi_canh(&self, snapshot: &mut CanTypeContextSnapshot) -> bool {
         let Some(cb) = self.bang.lay_boi_canh else {
             return false;
         };
@@ -58,14 +58,14 @@ impl<'a> FcitxHost<'a> {
 
 impl<'a> Host for FcitxHost<'a> {
     fn boi_canh(&self) -> BoiCanhNhap {
-        let mut snapshot = CadenceContextSnapshot {
+        let mut snapshot = CanTypeContextSnapshot {
             context_id: 0,
             focus_generation: 0,
             has_focus: 0,
             surrounding_valid: 0,
             cursor: 0,
             anchor: 0,
-            text: crate::fcitx5::CadenceSlice {
+            text: crate::fcitx5::CanTypeSlice {
                 ptr: std::ptr::null(),
                 len: 0,
             },
@@ -111,14 +111,14 @@ impl<'a> Host for FcitxHost<'a> {
     }
 }
 
-/// Đọc `CadenceSlice` thành `String` (validate UTF-8, copy). Trả `String` rỗng
+/// Đọc `CanTypeSlice` thành `String` (validate UTF-8, copy). Trả `String` rỗng
 /// nếu ptr null hoặc UTF-8 invalid.
 ///
 /// # Safety
 ///
 /// `slice.ptr` phải hợp lệ cho `slice.len` byte (hoặc null), không alias Rust
 /// memory đang mượn mutable. C++ đảm bảo trong thời gian lời gọi FFI.
-unsafe fn lay_chuoi_utf8(slice: &crate::fcitx5::CadenceSlice) -> String {
+unsafe fn lay_chuoi_utf8(slice: &crate::fcitx5::CanTypeSlice) -> String {
     if slice.ptr.is_null() || slice.len == 0 {
         return String::new();
     }
@@ -131,14 +131,14 @@ unsafe fn lay_chuoi_utf8(slice: &crate::fcitx5::CadenceSlice) -> String {
     }
 }
 
-/// Chuyển [`CadenceKeySnapshot`] (C ABI, có con trỏ) sang [`PhimRust`] (thuần
+/// Chuyển [`CanTypeKeySnapshot`] (C ABI, có con trỏ) sang [`PhimRust`] (thuần
 /// Rust, không con trỏ). Đọc `utf8` slice một lần rồi trích `char` đầu tiên.
 ///
 /// # Safety
 ///
 /// `key.utf8.ptr` phải hợp lệ cho `key.utf8.len` byte (hoặc null) trong suốt
 /// lời gọi. C++ đảm bảo (std::string sống trong scope `keyEvent`).
-unsafe fn doc_phim(key: &CadenceKeySnapshot) -> PhimRust {
+unsafe fn doc_phim(key: &CanTypeKeySnapshot) -> PhimRust {
     let utf8 = unsafe { lay_chuoi_utf8(&key.utf8) };
     let ky_tu = utf8.chars().next();
     PhimRust {
@@ -151,12 +151,12 @@ unsafe fn doc_phim(key: &CadenceKeySnapshot) -> PhimRust {
     }
 }
 
-/// Ánh xả [`KetQuaXuLy`] sang [`CadenceXuLyKetQua`] (C ABI).
-fn chuyen_ket_qua_xu_ly(kq: KetQuaXuLy) -> CadenceXuLyKetQua {
+/// Ánh xả [`KetQuaXuLy`] sang [`CanTypeXuLyKetQua`] (C ABI).
+fn chuyen_ket_qua_xu_ly(kq: KetQuaXuLy) -> CanTypeXuLyKetQua {
     match kq {
-        KetQuaXuLy::DaApDung => CadenceXuLyKetQua::DaApDung,
-        KetQuaXuLy::ChuyenTiep => CadenceXuLyKetQua::ChuyenTiep,
-        KetQuaXuLy::MatDongBo => CadenceXuLyKetQua::MatDongBo,
+        KetQuaXuLy::DaApDung => CanTypeXuLyKetQua::DaApDung,
+        KetQuaXuLy::ChuyenTiep => CanTypeXuLyKetQua::ChuyenTiep,
+        KetQuaXuLy::MatDongBo => CanTypeXuLyKetQua::MatDongBo,
     }
 }
 
@@ -171,24 +171,24 @@ fn chuyen_ket_qua_host(ret: i32) -> KetQuaHost {
 }
 
 /// Entry factory do Fcitx loader `dlsym`. Định nghĩa trong Rust (`#[no_mangle]`)
-/// để попад vào version script export của cdylib Rust; gọi `cadence_native_
-/// factory` của C++ trả static `AddonFactory*`.
+/// để lọt vào dynsym export của cdylib Rust; gọi `cantype_native_factory` của
+/// C++ trả static `AddonFactory*`.
 #[cfg(feature = "fcitx5")]
 #[unsafe(no_mangle)]
 pub extern "C" fn fcitx_addon_factory_instance() -> *mut core::ffi::c_void {
     // SAFETY: hàm C++ thuần trả static pointer, không panic, không đọc state Rust.
-    unsafe { cadence_native_factory() }
+    unsafe { cantype_native_factory() }
 }
 
 #[cfg(feature = "fcitx5")]
 unsafe extern "C" {
-    fn cadence_native_factory() -> *mut core::ffi::c_void;
+    fn cantype_native_factory() -> *mut core::ffi::c_void;
 }
 
 /// Tạo `PhienNhap` mới cho `context_id`, trả opaque handle.
 #[cfg(feature = "fcitx5")]
 #[unsafe(no_mangle)]
-pub extern "C" fn cadence_phien_tao(context_id: u64) -> *mut core::ffi::c_void {
+pub extern "C" fn cantype_phien_tao(context_id: u64) -> *mut core::ffi::c_void {
     let res = catch_unwind(|| {
         let phien = PhienNhap::moi(ContextId(context_id));
         Box::into_raw(Box::new(phien)) as *mut core::ffi::c_void
@@ -199,11 +199,11 @@ pub extern "C" fn cadence_phien_tao(context_id: u64) -> *mut core::ffi::c_void {
 /// Giải phóng `PhienNhap` handle. An toàn với NULL. Mỗi handle đúng một lần.
 #[cfg(feature = "fcitx5")]
 #[unsafe(no_mangle)]
-pub extern "C" fn cadence_phien_giai_phong(phien: *mut core::ffi::c_void) {
+pub extern "C" fn cantype_phien_giai_phong(phien: *mut core::ffi::c_void) {
     if phien.is_null() {
         return;
     }
-    // SAFETY: `phien` do `cadence_phien_tao` trả (Box::into_raw), non-null ở đây.
+    // SAFETY: `phien` do `cantype_phien_tao` trả (Box::into_raw), non-null ở đây.
     // Tái lập Box và drop. Caller (C++) phải đặt nullptr sau — không gọi 2 lần.
     let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
         drop(Box::from_raw(phien as *mut PhienNhap));
@@ -213,7 +213,7 @@ pub extern "C" fn cadence_phien_giai_phong(phien: *mut core::ffi::c_void) {
 /// Đặt lại phiên (relinquish): dùng cho reset/deactivate/focus-out.
 #[cfg(feature = "fcitx5")]
 #[unsafe(no_mangle)]
-pub extern "C" fn cadence_phien_dat_lai(phien: *mut core::ffi::c_void) {
+pub extern "C" fn cantype_phien_dat_lai(phien: *mut core::ffi::c_void) {
     if phien.is_null() {
         return;
     }
@@ -230,42 +230,42 @@ unsafe fn dat_lai_noi_bo(phien: *mut core::ffi::c_void) {
     phien.dat_lai();
 }
 
-/// Xử lý một phím. Trả [`CadenceXuLyKetQua`]. Panic không vượt FFI.
+/// Xử lý một phím. Trả [`CanTypeXuLyKetQua`]. Panic không vượt FFI.
 #[cfg(feature = "fcitx5")]
 #[unsafe(no_mangle)]
-pub extern "C" fn cadence_xu_ly_phim(
+pub extern "C" fn cantype_xu_ly_phim(
     phien: *mut core::ffi::c_void,
-    key: *const CadenceKeySnapshot,
-    bang: *const CadenceHostBang,
-) -> CadenceXuLyKetQua {
+    key: *const CanTypeKeySnapshot,
+    bang: *const CanTypeHostBang,
+) -> CanTypeXuLyKetQua {
     let res = catch_unwind(AssertUnwindSafe(|| xu_ly_phim_noi_bo(phien, key, bang)));
-    res.unwrap_or(CadenceXuLyKetQua::ChuyenTiep)
+    res.unwrap_or(CanTypeXuLyKetQua::ChuyenTiep)
 }
 
 /// Xử lý phím nội bộ (không catch_unwind; wrapper đã catch).
 fn xu_ly_phim_noi_bo(
     phien: *mut core::ffi::c_void,
-    key: *const CadenceKeySnapshot,
-    bang: *const CadenceHostBang,
-) -> CadenceXuLyKetQua {
+    key: *const CanTypeKeySnapshot,
+    bang: *const CanTypeHostBang,
+) -> CanTypeXuLyKetQua {
     if phien.is_null() || key.is_null() || bang.is_null() {
-        return CadenceXuLyKetQua::ChuyenTiep;
+        return CanTypeXuLyKetQua::ChuyenTiep;
     }
     // SAFETY: `phien` hợp lệ (Box::into_raw) — mượn &mut cho lời gọi này.
     // `key`, `bang` hợp lệ (C++ borrow) cho lời gọi. Không alias nhau.
     let phien: &mut PhienNhap = unsafe { &mut *(phien as *mut PhienNhap) };
-    let key_ref: &CadenceKeySnapshot = unsafe { &*key };
-    let bang_ref: &CadenceHostBang = unsafe { &*bang };
+    let key_ref: &CanTypeKeySnapshot = unsafe { &*key };
+    let bang_ref: &CanTypeHostBang = unsafe { &*bang };
 
     // SAFETY: `key_ref.utf8.ptr` hợp lệ trong scope `keyEvent` (C++ borrow
     // std::string). `doc_phim` đọc slice một lần, copy ra `PhimRust`.
     let phim = unsafe { doc_phim(key_ref) };
     match anh_xa_phim(&phim) {
-        AnhXaPhim::BoQua => CadenceXuLyKetQua::ChuyenTiep,
+        AnhXaPhim::BoQua => CanTypeXuLyKetQua::ChuyenTiep,
         AnhXaPhim::SuKien(su_kien) => {
             let Some(mut host) = FcitxHost::moi(bang_ref) else {
                 // Bang null → không xử lý, passthrough (không nuốt phím).
-                return CadenceXuLyKetQua::ChuyenTiep;
+                return CanTypeXuLyKetQua::ChuyenTiep;
             };
             let kq = phien.xu_ly(&mut host, &su_kien);
             chuyen_ket_qua_xu_ly(kq)

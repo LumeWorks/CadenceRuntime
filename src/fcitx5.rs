@@ -17,16 +17,16 @@
 use crate::host::{BoiCanhNhap, ContextId};
 use crate::phien::SuKienNhap;
 
-/// Lát cắt byte UTF-8 không sở hữu (khớp `CadenceSlice` trong C ABI).
+/// Lát cắt byte UTF-8 không sở hữu (khớp `CanTypeSlice` trong C ABI).
 #[repr(C)]
-pub struct CadenceSlice {
+pub struct CanTypeSlice {
     /// Con trỏ byte, hợp lệ trong thời gian lời gọi FFI.
     pub ptr: *const u8,
     /// Số byte.
     pub len: usize,
 }
 
-/// Phân loại phím đặc biệt (khớp `CadenceKeyDacBiet`).
+/// Phân loại phím đặc biệt (khớp `CanTypeKeyDacBiet`).
 ///
 /// Giá trị do C++ điền từ `Key::sym()`; Rust chỉ đọc (match). Các biến thể
 /// "không construct" theo góc nhìn Rust vì C++ tạo chúng — `allow(dead_code)`
@@ -34,7 +34,7 @@ pub struct CadenceSlice {
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
-pub enum CadenceKeyDacBiet {
+pub enum CanTypeKeyDacBiet {
     /// Không đặc biệt.
     Khac = 0,
     /// Backspace.
@@ -47,9 +47,9 @@ pub enum CadenceKeyDacBiet {
     Tab = 4,
 }
 
-/// Snapshot phím (khớp `CadenceKeySnapshot`). C++ điền từ `KeyEvent`/`Key`.
+/// Snapshot phím (khớp `CanTypeKeySnapshot`). C++ điền từ `KeyEvent`/`Key`.
 #[repr(C)]
-pub struct CadenceKeySnapshot {
+pub struct CanTypeKeySnapshot {
     /// `true` (≠0) nếu là key release.
     pub is_release: i32,
     /// `true` nếu arrow/page (cursor move).
@@ -59,14 +59,14 @@ pub struct CadenceKeySnapshot {
     /// `true` nếu có Ctrl/Alt/Super/Hyper/Meta (không tính Shift).
     pub has_modifier: i32,
     /// Phím đặc biệt.
-    pub dac_biet: CadenceKeyDacBiet,
+    pub dac_biet: CanTypeKeyDacBiet,
     /// `keySymToUTF8` của normalized key; rỗng nếu không printable.
-    pub utf8: CadenceSlice,
+    pub utf8: CanTypeSlice,
 }
 
-/// Snapshot ngữ cảnh nhập (khớp `CadenceContextSnapshot`).
+/// Snapshot ngữ cảnh nhập (khớp `CanTypeContextSnapshot`).
 #[repr(C)]
-pub struct CadenceContextSnapshot {
+pub struct CanTypeContextSnapshot {
     /// Context id.
     pub context_id: u64,
     /// Thế hệ focus.
@@ -80,13 +80,13 @@ pub struct CadenceContextSnapshot {
     /// Offset anchor theo ký tự.
     pub anchor: u32,
     /// Toàn bộ surrounding text (UTF-8).
-    pub text: CadenceSlice,
+    pub text: CanTypeSlice,
 }
 
-/// Kết quả xử lý phím (khớp `CadenceXuLyKetQua`).
+/// Kết quả xử lý phím (khớp `CanTypeXuLyKetQua`).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CadenceXuLyKetQua {
+pub enum CanTypeXuLyKetQua {
     /// Chuyển tiếp (passthrough).
     ChuyenTiep = 0,
     /// Đã áp dụng (host DaPhat, state tiến).
@@ -95,15 +95,15 @@ pub enum CadenceXuLyKetQua {
     MatDongBo = 2,
 }
 
-/// Bảng callback C++ (khớp `CadenceHostBang`). Rust chỉ truyền lại `ic` cho
+/// Bảng callback C++ (khớp `CanTypeHostBang`). Rust chỉ truyền lại `ic` cho
 /// callback, không deref. Việc gọi callback (unsafe) nằm trong [`ffi`](crate::ffi).
 #[repr(C)]
-pub struct CadenceHostBang {
+pub struct CanTypeHostBang {
     /// Opaque `fcitx::InputContext*`.
     pub ic: *mut core::ffi::c_void,
     /// Callback điền snapshot ngữ cảnh.
     pub lay_boi_canh:
-        Option<extern "C" fn(*mut core::ffi::c_void, *mut CadenceContextSnapshot) -> i32>,
+        Option<extern "C" fn(*mut core::ffi::c_void, *mut CanTypeContextSnapshot) -> i32>,
     /// Callback commit string.
     pub chen: Option<extern "C" fn(*mut core::ffi::c_void, *const u8, usize) -> i32>,
     /// Callback xóa `xoa_ky_tu` ký tự trước con trỏ rồi commit.
@@ -111,7 +111,7 @@ pub struct CadenceHostBang {
 }
 
 /// Phím dạng Rust-friendly (không con trỏ). [`ffi`](crate::ffi) chuyển từ
-/// [`CadenceKeySnapshot`] (unsafe) sang kiểu này trước khi gọi [`anh_xa_phim`].
+/// [`CanTypeKeySnapshot`] (unsafe) sang kiểu này trước khi gọi [`anh_xa_phim`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct PhimRust {
     /// `true` nếu là key release.
@@ -123,7 +123,7 @@ pub(crate) struct PhimRust {
     /// `true` nếu có Ctrl/Alt/Super/Hyper/Meta (không tính Shift).
     pub has_modifier: bool,
     /// Phím đặc biệt.
-    pub dac_biet: CadenceKeyDacBiet,
+    pub dac_biet: CanTypeKeyDacBiet,
     /// Ký tự printable từ `keySymToUTF8`; `None` nếu không printable.
     pub ky_tu: Option<char>,
 }
@@ -169,11 +169,11 @@ pub(crate) fn anh_xa_phim(key: &PhimRust) -> AnhXaPhim {
     }
     // 4-6. Phím đặc biệt.
     match key.dac_biet {
-        CadenceKeyDacBiet::Backspace => return AnhXaPhim::SuKien(SuKienNhap::XoaLui),
-        CadenceKeyDacBiet::Escape => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
-        CadenceKeyDacBiet::Enter => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
-        CadenceKeyDacBiet::Tab => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
-        CadenceKeyDacBiet::Khac => {}
+        CanTypeKeyDacBiet::Backspace => return AnhXaPhim::SuKien(SuKienNhap::XoaLui),
+        CanTypeKeyDacBiet::Escape => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CanTypeKeyDacBiet::Enter => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CanTypeKeyDacBiet::Tab => return AnhXaPhim::SuKien(SuKienNhap::DatLai),
+        CanTypeKeyDacBiet::Khac => {}
     }
     // 7. Cursor move: relinquish + passthrough.
     if key.is_cursor_move {
@@ -194,7 +194,7 @@ pub(crate) fn anh_xa_phim(key: &PhimRust) -> AnhXaPhim {
 /// cắt text trước con trỏ: `text[..cursor_byte]` sau khi chuyển offset ký tự
 /// sang offset byte. Nếu surrounding không hợp lệ hoặc cursor ngoài range →
 /// `van_ban_truoc_con_tro = None`.
-pub(crate) fn chuyen_boi_canh(snapshot: &CadenceContextSnapshot, text: &str) -> BoiCanhNhap {
+pub(crate) fn chuyen_boi_canh(snapshot: &CanTypeContextSnapshot, text: &str) -> BoiCanhNhap {
     let van_ban_truoc_con_tro = if snapshot.surrounding_valid != 0 {
         // cursor là offset ký tự (code point). Chuyển sang offset byte UTF-8.
         // Nếu cursor vượt text → None (không verify được).

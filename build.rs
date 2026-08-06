@@ -7,7 +7,7 @@
 //! Khi feature tắt, build.rs không làm gì — lõi Rust thuần, không cần Fcitx5
 //! dev. Entry point chính vẫn là `cargo build` / `cargo test`. Factory symbol
 //! `fcitx_addon_factory_instance` (xuất bằng `#[no_mangle]` trong `src/ffi.rs`)
-//! là symbol duy nhất loader Fcitx `dlsym`; nó gọi `cadence_native_factory` của
+//! là symbol duy nhất loader Fcitx `dlsym`; nó gọi `cantype_native_factory` của
 //! C++ trả static `AddonFactory*`. Xem `docs/PHASE_2_FCITX5.md`.
 
 fn main() {
@@ -54,9 +54,9 @@ fn build_fcitx5() {
         build.flag(format!("-isystem{}", inc.display()));
     }
 
-    // Compile C++ thành static archive `cadence_native` (link vào cdylib).
-    // cc::compile phát `cargo:rustc-link-lib=static=cadence_native`.
-    build.compile("cadence_native");
+    // Compile C++ thành static archive `cantype_native` (link vào cdylib).
+    // cc::compile phát `cargo:rustc-link-lib=static=cantype_native`.
+    build.compile("cantype_native");
 
     // Link Fcitx5Core và dependency (Fcitx5Utils/Fcitx5Config từ Requires).
     for lib in &pk.libs {
