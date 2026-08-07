@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-// Cửa sổ chính CanType. Compact ~470×360, 2 tab (Cơ bản/Hệ thống), header gọn
-// với status V/E realtime, footer [Mặc định][Lưu][Đóng] (explicit Save). Màu
-// dùng `Palette` của style (fluent) để tự адап dark/light. Tray icon V/E với
-// menu có checkmark + `MenuSeparator` + tooltip kèm kiểu gõ.
+// CanType — compact native-style desktop utility.
+// Visual direction: UniKey-like utility layout, not a dashboard.
+// Public properties/callbacks are intentionally kept stable for Rust.
 
-import { ComboBox, Switch, CheckBox, Button, Palette }
+import { Button, CheckBox, ComboBox, Palette }
 from "std-widgets.slint";
 
-// Tray icon CanType. Icon V (tiếng Việt) / E (tiếng Anh). Tooltip kèm kiểu gõ
-// khi bật. Left click = toggle V/E. Menu: header trạng thái →
-// Tiếng Việt/Tiếng Anh (checkmark) → Telex/VNI (checkmark) → Mở CanType /
-// Thoát giao diện.
 export component TrayCanType inherits SystemTrayIcon {
-    // `dang-bat` điều khiển icon + menu. Rust set property này.
     in property <bool> dang-bat: true;
     in property <string> kieu-go: "telex";
+
     callback mo-cua-so();
     callback thoat-giao-dien();
     callback dat-tieng-viet(bool);
@@ -30,15 +25,11 @@ export component TrayCanType inherits SystemTrayIcon {
         : "CanType — Tiếng Anh";
     visible: true;
 
-    // Left click tray = toggle Tiếng Việt / Tiếng Anh (giống UniKey/EVKey).
-    // Mở cửa sổ chỉ qua menu "Mở CanType".
     clicked => { root.dat-tieng-viet(!root.dang-bat); }
 
     Menu {
-        // Header trạng thái (không click được).
         MenuItem {
-            title: root.dang-bat ? "CanType — Tiếng Việt"
-                                 : "CanType — Tiếng Anh";
+            title: root.dang-bat ? "CanType — Tiếng Việt" : "CanType — Tiếng Anh";
             enabled: false;
         }
         MenuSeparator { }
@@ -77,17 +68,11 @@ export component TrayCanType inherits SystemTrayIcon {
 
 export component App inherits Window {
     title: "CanType";
-    // Cố định width/height: WM tắt nút maximize (không resize được).
-    width: 470px;
-    height: 430px;
-    background: Palette.background;
 
-    // --- In-out properties (config) ---
     in-out property <bool> dang-bat: true;
-    in-out property <string> kieu-go: "telex";        // "telex" | "vni"
+    in-out property <string> kieu-go: "telex";
     in-out property <bool> khoi-dong-cung-he-thong: false;
 
-    // --- In properties (tab Hệ thống, chỉ đọc) ---
     in property <string> phien-lam-viec: "KDE Plasma · X11";
     in property <string> trang-thai-framework: "Hoạt động";
     in property <string> trang-thai-addon: "Đã nạp";
@@ -96,392 +81,416 @@ export component App inherits Window {
     in property <string> trang-thai-tong-quan: "CanType đang hoạt động bình thường";
     in property <bool> khoe-manh: true;
 
-    // --- Callbacks ---
     callback luu();
     callback mac-dinh();
     callback dong();
     callback kiem-tra-lai();
 
-    // 0 = Cơ bản, 1 = Hệ thống. (Tab Phím tắt ẩn ở bản Alpha.)
+    // 0 = compact, 1 = expanded system details
     in-out property <int> tab-hien-tai: 0;
 
+    property <length> compact-height: 292px;
+    property <length> expanded-height: 438px;
+    property <length> current-height: root.tab-hien-tai == 0
+        ? root.compact-height
+        : root.expanded-height;
+
+    width: 438px;
+    height: root.current-height;
+    animate height {
+        duration: 180ms;
+        easing: ease-in-out;
+    }
+    background: Palette.background;
+
+    property <brush> border-color: Palette.foreground.with-alpha(0.24);
+    property <brush> quiet-text: Palette.foreground.with-alpha(0.68);
+
     VerticalLayout {
-        // --- Header: tên + bản quyền + status V/E ---
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 12px;
+        padding-bottom: 10px;
+        spacing: 10px;
+
+        // -------------------------------------------------------------
+        // Main control area
+        // -------------------------------------------------------------
         HorizontalLayout {
-            padding-top: 14px;
-            padding-right: 16px;
-            padding-bottom: 10px;
-            padding-left: 16px;
-            cross-axis-alignment: center;
+            height: 184px;
             spacing: 10px;
 
-            VerticalLayout {
-                horizontal-stretch: 0;
-                spacing: 0px;
-                Text {
-                    text: "CanType";
-                    font-size: 19px;
-                    font-weight: 700;
-                    color: Palette.foreground;
+            // GroupBox — Điều khiển
+            Rectangle {
+                horizontal-stretch: 1;
+                border-width: 1px;
+                border-color: root.border-color;
+                background: transparent;
+
+                Rectangle {
+                    x: 9px;
+                    y: -2px;
+                    width: 72px;
+                    height: 17px;
+                    background: Palette.background;
+
+                    Text {
+                        x: 5px;
+                        y: 0px;
+                        text: "Điều khiển";
+                        font-size: 12px;
+                        color: Palette.foreground;
+                        vertical-alignment: center;
+                    }
                 }
-                Text {
-                    text: "© 2026 Lê Hùng Quang Minh";
-                    font-size: 9px;
-                    color: Palette.alternate-foreground;
+
+                VerticalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    padding-top: 20px;
+                    padding-bottom: 11px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        height: 28px;
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            width: 74px;
+                            text: "Trạng thái:";
+                            font-size: 12px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+
+                        CheckBox {
+                            horizontal-stretch: 1;
+                            text: "Bật tiếng Việt";
+                            checked: root.dang-bat;
+                            toggled => { root.dang-bat = self.checked; }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 28px;
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            width: 74px;
+                            text: "Bảng mã:";
+                            font-size: 12px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+
+                        ComboBox {
+                            horizontal-stretch: 1;
+                            model: ["Unicode"];
+                            current-index: 0;
+                            enabled: false;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 28px;
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            width: 74px;
+                            text: "Kiểu gõ:";
+                            font-size: 12px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+
+                        ComboBox {
+                            horizontal-stretch: 1;
+                            model: ["Telex", "VNI"];
+                            current-index: root.kieu-go == "vni" ? 1 : 0;
+                            selected(value) => {
+                                root.kieu-go = value == "VNI" ? "vni" : "telex";
+                            }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 28px;
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            width: 74px;
+                            text: "Khởi động:";
+                            font-size: 12px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+
+                        CheckBox {
+                            horizontal-stretch: 1;
+                            text: "Cùng hệ thống";
+                            checked: root.khoi-dong-cung-he-thong;
+                            enabled: false;
+                        }
+                    }
                 }
             }
 
-            Rectangle { horizontal-stretch: 1; }
+            // Action column. Deliberately plain/native like UniKey.
+            VerticalLayout {
+                width: 106px;
+                spacing: 7px;
 
-            // Chấm trạng thái: đặc (accent) khi bật, rỗng khi tắt.
+                Button {
+                    height: 31px;
+                    text: "Lưu";
+                    clicked => { root.luu(); }
+                }
+
+                Button {
+                    height: 31px;
+                    text: "Đóng";
+                    clicked => { root.dong(); }
+                }
+
+                Button {
+                    height: 31px;
+                    text: "Mặc định";
+                    clicked => { root.mac-dinh(); }
+                }
+
+                Rectangle { vertical-stretch: 1; }
+
+                Button {
+                    height: 31px;
+                    text: root.tab-hien-tai == 0 ? "Mở rộng  ›" : "Thu gọn  ‹";
+                    clicked => {
+                        root.tab-hien-tai = root.tab-hien-tai == 0 ? 1 : 0;
+                    }
+                }
+            }
+        }
+
+        // -------------------------------------------------------------
+        // Status / system panel. Keep both views alive so expanding and
+        // collapsing can cross-fade instead of popping abruptly.
+        // -------------------------------------------------------------
+        Rectangle {
+            height: root.tab-hien-tai == 0 ? 38px : 184px;
+            clip: true;
+            background: transparent;
+
+            animate height {
+                duration: 180ms;
+                easing: ease-in-out;
+            }
+
+            // Compact status strip
             Rectangle {
-                width: 10px;
-                height: 10px;
-                border-radius: 5px;
-                background: root.dang-bat ? Palette.accent-background
-                                         : transparent;
-                border-width: root.dang-bat ? 0px : 1.5px;
-                border-color: Palette.alternate-foreground;
+                width: parent.width;
+                height: 38px;
+                opacity: root.tab-hien-tai == 0 ? 1.0 : 0.0;
+                border-width: 1px;
+                border-color: root.border-color;
+                background: transparent;
+
+                animate opacity {
+                    duration: 100ms;
+                    easing: ease-out;
+                }
+
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    spacing: 8px;
+                    cross-axis-alignment: center;
+
+                    Text {
+                        width: 68px;
+                        text: "Hiện tại:";
+                        font-size: 11px;
+                        color: root.quiet-text;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.dang-bat
+                            ? "Tiếng Việt — " + (root.kieu-go == "vni" ? "VNI" : "Telex")
+                            : "Tiếng Anh";
+                        font-size: 11px;
+                        color: Palette.foreground;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: root.khoe-manh ? "Sẵn sàng" : "Có lỗi";
+                        font-size: 11px;
+                        color: root.khoe-manh ? #2f7d32 : #b3261e;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Expanded system information
+            Rectangle {
+                width: parent.width;
+                height: 184px;
+                opacity: root.tab-hien-tai == 1 ? 1.0 : 0.0;
+                border-width: 1px;
+                border-color: root.border-color;
+                background: transparent;
+
+                animate opacity {
+                    duration: 150ms;
+                    easing: ease-in-out;
+                }
+
+                Rectangle {
+                    x: 9px;
+                    y: -2px;
+                    width: 65px;
+                    height: 17px;
+                    background: Palette.background;
+
+                    Text {
+                        x: 5px;
+                        text: "Hệ thống";
+                        font-size: 12px;
+                        color: Palette.foreground;
+                        vertical-alignment: center;
+                    }
+                }
+
+                VerticalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    padding-top: 21px;
+                    padding-bottom: 10px;
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        height: 21px;
+                        Text {
+                            width: 112px;
+                            text: "Phiên làm việc:";
+                            font-size: 11px;
+                            color: root.quiet-text;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.phien-lam-viec;
+                            font-size: 11px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 21px;
+                        Text {
+                            width: 112px;
+                            text: "Framework:";
+                            font-size: 11px;
+                            color: root.quiet-text;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.trang-thai-framework;
+                            font-size: 11px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 21px;
+                        Text {
+                            width: 112px;
+                            text: "CanType addon:";
+                            font-size: 11px;
+                            color: root.quiet-text;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.trang-thai-addon;
+                            font-size: 11px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 21px;
+                        Text {
+                            width: 112px;
+                            text: "Phiên bản:";
+                            font-size: 11px;
+                            color: root.quiet-text;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.phien-ban-cantype + "  /  " + root.phien-ban-cadence;
+                            font-size: 11px;
+                            color: Palette.foreground;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle {
+                        height: 1px;
+                        background: root.border-color.with-alpha(0.7);
+                    }
+
+                    HorizontalLayout {
+                        height: 34px;
+                        spacing: 8px;
+                        cross-axis-alignment: center;
+
+                        Text {
+                            horizontal-stretch: 1;
+                            text: root.trang-thai-tong-quan;
+                            font-size: 11px;
+                            color: root.khoe-manh ? #2f7d32 : #b3261e;
+                            vertical-alignment: center;
+                        }
+
+                        Button {
+                            width: 102px;
+                            height: 28px;
+                            text: "Kiểm tra lại";
+                            clicked => { root.kiem-tra-lai(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle { vertical-stretch: 1; }
+
+        HorizontalLayout {
+            height: 17px;
+
+            Text {
+                horizontal-stretch: 1;
+                text: "© 2026 Lê Hùng Quang Minh";
+                font-size: 10px;
+                color: root.quiet-text;
+                vertical-alignment: center;
             }
 
             Text {
-                text: root.dang-bat ? "Tiếng Việt" : "Tiếng Anh";
-                font-size: 13px;
-                color: Palette.foreground;
+                text: "CanType " + root.phien-ban-cantype + " · Cadence " + root.phien-ban-cadence;
+                font-size: 10px;
+                color: root.quiet-text;
                 vertical-alignment: center;
-            }
-        }
-
-        // --- Tab bar nhẹ (underline accent) ---
-        HorizontalLayout {
-            padding-left: 16px;
-            padding-right: 16px;
-            spacing: 28px;
-
-            // Tab Cơ bản
-            Rectangle {
-                width: 84px;
-                height: 34px;
-                TouchArea {
-                    x: 0; y: 0;
-                    width: parent.width; height: parent.height;
-                    clicked => { root.tab-hien-tai = 0; }
-                }
-                Text {
-                    x: 0; y: 0;
-                    width: parent.width; height: parent.height;
-                    text: "Cơ bản";
-                    font-size: 14px;
-                    font-weight: root.tab-hien-tai == 0 ? 600 : 400;
-                    color: root.tab-hien-tai == 0
-                        ? Palette.foreground
-                        : Palette.alternate-foreground;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                Rectangle {
-                    x: 0; y: parent.height - 2px;
-                    width: parent.width; height: 2px;
-                    background: Palette.accent-background;
-                    visible: root.tab-hien-tai == 0;
-                }
-            }
-
-            // Tab Hệ thống
-            Rectangle {
-                width: 92px;
-                height: 34px;
-                TouchArea {
-                    x: 0; y: 0;
-                    width: parent.width; height: parent.height;
-                    clicked => { root.tab-hien-tai = 1; }
-                }
-                Text {
-                    x: 0; y: 0;
-                    width: parent.width; height: parent.height;
-                    text: "Hệ thống";
-                    font-size: 14px;
-                    font-weight: root.tab-hien-tai == 1 ? 600 : 400;
-                    color: root.tab-hien-tai == 1
-                        ? Palette.foreground
-                        : Palette.alternate-foreground;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
-                }
-                Rectangle {
-                    x: 0; y: parent.height - 2px;
-                    width: parent.width; height: 2px;
-                    background: Palette.accent-background;
-                    visible: root.tab-hien-tai == 1;
-                }
-            }
-
-            Rectangle { horizontal-stretch: 1; }
-        }
-
-        // Separator dưới tab bar.
-        Rectangle { height: 1px; background: Palette.border; }
-
-        // --- Nội dung tab ---
-        VerticalLayout {
-
-            // Tab Cơ bản
-            if root.tab-hien-tai == 0 : VerticalLayout {
-                padding: 16px;
-                spacing: 12px;
-
-                // Tiếng Việt + switch
-                HorizontalLayout {
-                    height: 34px;
-                    cross-axis-alignment: center;
-                    spacing: 8px;
-                    Text {
-                        text: "Tiếng Việt";
-                        font-size: 14px;
-                        color: Palette.foreground;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-                    Switch {
-                        checked: root.dang-bat;
-                        toggled => { root.dang-bat = self.checked; }
-                    }
-                }
-
-                // Kiểu gõ + ComboBox
-                HorizontalLayout {
-                    height: 34px;
-                    cross-axis-alignment: center;
-                    spacing: 8px;
-                    Text {
-                        text: "Kiểu gõ";
-                        font-size: 14px;
-                        color: Palette.foreground;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-                    ComboBox {
-                        preferred-width: 170px;
-                        horizontal-stretch: 0;
-                        model: ["Telex", "VNI"];
-                        current-value: root.kieu-go == "vni" ? "VNI" : "Telex";
-                        selected => {
-                            root.kieu-go = self.current-index == 1
-                                ? "vni" : "telex";
-                        }
-                    }
-                }
-
-                // Bảng mã (giá trị tĩnh, không phải control)
-                HorizontalLayout {
-                    height: 30px;
-                    cross-axis-alignment: center;
-                    spacing: 8px;
-                    Text {
-                        text: "Bảng mã";
-                        font-size: 14px;
-                        color: Palette.foreground;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-                    Text {
-                        text: "Unicode";
-                        font-size: 14px;
-                        color: Palette.alternate-foreground;
-                        vertical-alignment: center;
-                        horizontal-alignment: right;
-                    }
-                }
-
-                // Separator nhẹ
-                Rectangle { height: 1px; background: Palette.border; }
-
-                // Khởi động cùng hệ thống (chưa hoạt động → disable + "(sắp có)")
-                HorizontalLayout {
-                    height: 34px;
-                    cross-axis-alignment: center;
-                    CheckBox {
-                        text: "Khởi động CanType cùng hệ thống (sắp có)";
-                        checked: root.khoi-dong-cung-he-thong;
-                        enabled: false;
-                    }
-                    Rectangle { horizontal-stretch: 1; }
-                }
-            }
-
-            // Tab Hệ thống
-            if root.tab-hien-tai == 1 : VerticalLayout {
-                padding: 14px;
-                spacing: 6px;
-
-                // Trạng thái tổng quát (chấm + text)
-                HorizontalLayout {
-                    height: 22px;
-                    cross-axis-alignment: center;
-                    spacing: 8px;
-                    Rectangle {
-                        width: 10px;
-                        height: 10px;
-                        border-radius: 5px;
-                        background: root.khoe-manh ? #43a047 : #e53935;
-                    }
-                    Text {
-                        text: root.trang-thai-tong-quan;
-                        font-size: 13px;
-                        color: Palette.foreground;
-                        vertical-alignment: center;
-                        horizontal-stretch: 1;
-                    }
-                }
-
-                // Section: Hệ thống
-                VerticalLayout {
-                    spacing: 4px;
-                    Text {
-                        text: "Hệ thống";
-                        font-size: 13px;
-                        font-weight: 600;
-                        color: Palette.foreground;
-                    }
-                    Text {
-                        text: root.phien-lam-viec;
-                        font-size: 13px;
-                        color: Palette.alternate-foreground;
-                    }
-                }
-
-                // Section: Bộ gõ
-                VerticalLayout {
-                    spacing: 4px;
-                    Text {
-                        text: "Bộ gõ";
-                        font-size: 13px;
-                        font-weight: 600;
-                        color: Palette.foreground;
-                    }
-                    HorizontalLayout {
-                        height: 20px;
-                        cross-axis-alignment: center;
-                        Text {
-                            text: "Fcitx5";
-                            font-size: 13px;
-                            color: Palette.foreground;
-                            vertical-alignment: center;
-                            horizontal-stretch: 1;
-                        }
-                        Text {
-                            text: root.trang-thai-framework;
-                            font-size: 13px;
-                            color: Palette.alternate-foreground;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
-                        }
-                    }
-                    HorizontalLayout {
-                        height: 20px;
-                        cross-axis-alignment: center;
-                        Text {
-                            text: "CanType";
-                            font-size: 13px;
-                            color: Palette.foreground;
-                            vertical-alignment: center;
-                            horizontal-stretch: 1;
-                        }
-                        Text {
-                            text: root.trang-thai-addon;
-                            font-size: 13px;
-                            color: Palette.alternate-foreground;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
-                        }
-                    }
-                }
-
-                // Section: Phiên bản
-                VerticalLayout {
-                    spacing: 4px;
-                    Text {
-                        text: "Phiên bản";
-                        font-size: 13px;
-                        font-weight: 600;
-                        color: Palette.foreground;
-                    }
-                    HorizontalLayout {
-                        height: 20px;
-                        cross-axis-alignment: center;
-                        Text {
-                            text: "CanType";
-                            font-size: 13px;
-                            color: Palette.foreground;
-                            vertical-alignment: center;
-                            horizontal-stretch: 1;
-                        }
-                        Text {
-                            text: root.phien-ban-cantype;
-                            font-size: 13px;
-                            color: Palette.alternate-foreground;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
-                        }
-                    }
-                    HorizontalLayout {
-                        height: 20px;
-                        cross-axis-alignment: center;
-                        Text {
-                            text: "Cadence";
-                            font-size: 13px;
-                            color: Palette.foreground;
-                            vertical-alignment: center;
-                            horizontal-stretch: 1;
-                        }
-                        Text {
-                            text: root.phien-ban-cadence;
-                            font-size: 13px;
-                            color: Palette.alternate-foreground;
-                            vertical-alignment: center;
-                            horizontal-alignment: right;
-                        }
-                    }
-                }
-
-                // Nút Kiểm tra lại (align phải, không full width)
-                HorizontalLayout {
-                    height: 36px;
-                    cross-axis-alignment: center;
-                    Rectangle { horizontal-stretch: 1; }
-                    Button {
-                        text: "Kiểm tra lại";
-                        preferred-width: 130px;
-                        horizontal-stretch: 0;
-                        clicked => { root.kiem-tra-lai(); }
-                    }
-                }
-            }
-        }
-
-        // Spacer đẩy footer xuống đáy window (tab content ở trên, không trống).
-        Rectangle { vertical-stretch: 1; }
-
-        // Separator trên footer
-        Rectangle { height: 1px; background: Palette.border; }
-
-        // --- Footer (explicit Save) ---
-        HorizontalLayout {
-            padding: 12px;
-            spacing: 8px;
-            cross-axis-alignment: center;
-            Button {
-                text: "Mặc định";
-                clicked => { root.mac-dinh(); }
-            }
-            Rectangle { horizontal-stretch: 1; }
-            Button {
-                text: "Lưu";
-                clicked => { root.luu(); }
-            }
-            Button {
-                text: "Đóng";
-                clicked => { root.dong(); }
             }
         }
     }
