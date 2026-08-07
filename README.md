@@ -51,6 +51,22 @@ Phase 2 tích hợp Fcitx5 (Linux) và thêm GUI/tray `cantype`:
 Chưa làm ở Phase 2: IBus, Windows TSF, macOS, uinput, packaging system-wide,
 global hotkey, auto-repair. Xem `docs/PHASE_2_FCITX5.md`.
 
+## Phase 3
+
+Phase 3 khảo sát tương thích Fcitx5 trên nhiều frontend/app Linux (Qt, GTK,
+LibreOffice, Chromium, Electron, terminal) — KHÔNG packaging, KHÔNG preedit
+fallback, KHÔNG uinput. Mở rộng diagnostic (module `tuong_thich`, feature
+`diag` + env `CANTYPE_DEBUG`) log metadata KHÔNG chứa text user. Nghiên cứu
+Route B (`ContextKeyReplace` = `forwardKey(Backspace)` + `commitString`) cho
+frontend không surrounding — **REJECTED**: cursor invalidation contract yếu
+(GTK4/Qt/XIM/LibreOffice không reset khi click/undo/autocomplete), Route B mù
+cursor unsafe. Kết luận: secondary route unsafe for current frontend
+contracts. Xem [`docs/PHASE_3_COMPATIBILITY.md`](./docs/PHASE_3_COMPATIBILITY.md)
+cho taxonomy, capability matrix, decision gate, exit criteria.
+
+Chưa làm ở Phase 3: packaging, Wayland runtime-verify (chỉ X11 native test),
+GTK3/4 text field harness riêng, IBus/Windows/macOS. Chuyển Phase 4.
+
 ## Kiến trúc
 
 CanType là đúng **một Cargo package và một library crate**. Module chính:

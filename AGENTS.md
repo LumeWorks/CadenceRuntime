@@ -72,3 +72,14 @@ Phase 2 tích hợp Fcitx5 (Linux) + GUI/tray Slint. Lifecycle đầy đủ
 chung schema versioned. Developer install qua `scripts/`. Xem
 `docs/PHASE_2_FCITX5.md`. Chưa: IBus, Windows TSF, macOS, packaging
 system-wide, global hotkey, auto-repair.
+
+## Phase 3
+
+Phase 3 mở rộng tương thích Fcitx5 (KHÔNG packaging, KHÔNG preedit fallback,
+KHÔNG uinput). Diagnostic `src/tuong_thich.rs` (feature `diag` + env
+`CANTYPE_DEBUG`) log metadata KHÔNG chứa text user. Route B
+(`ContextKeyReplace` = `forwardKey(Backspace)` + `commitString`) REJECTED —
+cursor invalidation contract yếu (GTK4/Qt/XIM/LibreOffice không reset khi
+click/undo/autocomplete). Test `tests/compatibility.rs` pin invariant. Xem
+`docs/PHASE_3_COMPATIBILITY.md` + `docs/COMPATIBILITY.md`. Chưa runtime-verify:
+Wayland, XIM, GTK3/4 text field harness riêng. Chuyển Phase 4.
