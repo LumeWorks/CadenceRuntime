@@ -145,3 +145,43 @@ Dự án trước đây tên `CadenceRuntime`; artifact cũ có thể còn trong
 --cleanup-old` xóa các file này trước khi cài CanType. Chỉ xóa file có tên
 chính xác do dự án cũ tạo — không glob rộng, không xóa addon khác (vd
 `unilume.conf`, `lotus.conf` giữ nguyên).
+
+## 9. Kết quả validation desktop
+
+Validation tự động (88 test, toàn bộ gate xanh) và validation desktop thật trên
+Kate, LibreOffice, tray. Hai commit chốt Phase 2: `e854f85` (chan Delete bi
+nhan thanh ky tu DEL) và `c562917` (huong dan kich hoat CanType trong profile
+fcitx5).
+
+### Smoke test (HEAD `c562917`)
+
+* Switch sang CanType rồi gõ ngay "as" → `á` (NFC), `vowsi` → `với` (NFC).
+* Đang gõ → Delete → passthrough đúng (không lọt `U+007F`, không giả Backspace)
+  → gõ tiếp tạo composition mới, không dùng state cũ.
+* Restart Fcitx → addon load lại → gõ `á với tiếng` (NFC).
+
+### Kate (Qt5 frontend)
+
+Zero-preedit native hoạt động: `as → á`, `vowsi → với`, Backspace hoàn tác
+tone, Delete passthrough. Qt5 report surrounding text (`surrValid=1`) từ phím
+thứ hai trở đi — đúng lúc CanType bắt đầu cần `ThayThe` để verify-before-mutate.
+
+### LibreOffice (GTK3 frontend)
+
+LibreOffice GTK3 hiện không hỗ trợ NativeReplace do không cung cấp surrounding
+text hợp lệ. Diagnostic xác nhận: `caps` có `SurroundingText=1` nhưng
+`surrValid=0` cho mọi key event — GTK3 frontend có capability nhưng không report
+surrounding text thực. CanType passthrough là đúng containment: không đoán mò
+`ThayThe` khi không có surrounding để verify.
+
+Hướng compatibility sẽ được nghiên cứu ở phase sau; không nới
+verify-before-mutate và chưa quyết định dùng preedit.
+
+### Tray interaction
+
+Tray đăng ký D-Bus (`org.kde.StatusNotifierItem`), ToolTip "CanType - Tiếng
+Việt", IconPixmap 16x16. Click trái (Activate) mở cửa sổ. "Thoát giao diện"
+thoát event loop GUI; addon Fcitx5 tiếp tục chạy riêng (xác nhận: app exit,
+gõ `á với` NFC bình thường). V/E toggle, Telex/VNI, "Đóng" ẩn cửa sổ: code
+logic đúng (`src/ung_dung.rs`), cần user xác nhận click UI thủ công (Slint
+không có AT-SPI accessibility).
