@@ -10,8 +10,9 @@ import { ComboBox, Switch, CheckBox, Button, Palette }
 from "std-widgets.slint";
 
 // Tray icon CanType. Icon V (tiếng Việt) / E (tiếng Anh). Tooltip kèm kiểu gõ
-// khi bật. Menu: header trạng thái → Tiếng Việt/Tiếng Anh (checkmark) →
-// Telex/VNI (checkmark) → Mở CanType / Thoát giao diện.
+// khi bật. Left click = toggle V/E. Menu: header trạng thái →
+// Tiếng Việt/Tiếng Anh (checkmark) → Telex/VNI (checkmark) → Mở CanType /
+// Thoát giao diện.
 export component TrayCanType inherits SystemTrayIcon {
     // `dang-bat` điều khiển icon + menu. Rust set property này.
     in property <bool> dang-bat: true;
@@ -29,7 +30,9 @@ export component TrayCanType inherits SystemTrayIcon {
         : "CanType — Tiếng Anh";
     visible: true;
 
-    clicked => { root.mo-cua-so(); }
+    // Left click tray = toggle Tiếng Việt / Tiếng Anh (giống UniKey/EVKey).
+    // Mở cửa sổ chỉ qua menu "Mở CanType".
+    clicked => { root.dat-tieng-viet(!root.dang-bat); }
 
     Menu {
         // Header trạng thái (không click được).
@@ -100,7 +103,7 @@ export component App inherits Window {
     callback kiem-tra-lai();
 
     // 0 = Cơ bản, 1 = Hệ thống. (Tab Phím tắt ẩn ở bản Alpha.)
-    property <int> tab-hien-tai: 0;
+    in-out property <int> tab-hien-tai: 0;
 
     VerticalLayout {
         // --- Header: tên + bản quyền + status V/E ---
@@ -221,7 +224,6 @@ export component App inherits Window {
 
         // --- Nội dung tab ---
         VerticalLayout {
-            vertical-stretch: 1;
 
             // Tab Cơ bản
             if root.tab-hien-tai == 0 : VerticalLayout {
@@ -456,6 +458,9 @@ export component App inherits Window {
                 }
             }
         }
+
+        // Spacer đẩy footer xuống đáy window (tab content ở trên, không trống).
+        Rectangle { vertical-stretch: 1; }
 
         // Separator trên footer
         Rectangle { height: 1px; background: Palette.border; }

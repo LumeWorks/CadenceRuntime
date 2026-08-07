@@ -84,11 +84,12 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     });
 
     // --- Callbacks tray ---
-    // Click trái tray → show + un-minimize (raise/focus gần nhất an toàn: Slint
-    // không expose set_focus public, dùng show + set_minimized(false)).
+    // Mở CanType (từ menu) → reset về tab Cơ bản + show + un-minimize.
+    // (Slint không expose set_focus public; dùng show + set_minimized(false).)
     let app_mo = app.as_weak();
     tray.on_mo_cua_so(move || {
         let app = app_mo.unwrap();
+        app.set_tab_hien_tai(0);
         let _ = app.window().show();
         app.window().set_minimized(false);
     });
