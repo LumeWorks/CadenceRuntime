@@ -28,10 +28,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Install Fcitx5 dev (cho --all-features)
+      - name: Install system deps (Fcitx5 + Slint)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+          sudo apt-get install -y \
+            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev \
+            libfontconfig1-dev libxkbcommon-dev libxcb1 libxcb-cursor-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libegl-dev libwayland-dev
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
@@ -46,10 +50,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
-      - name: Install Fcitx5 dev (cho --all-features)
+      - name: Install system deps (Fcitx5 + Slint)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+          sudo apt-get install -y \
+            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev \
+            libfontconfig1-dev libxkbcommon-dev libxcb1 libxcb-cursor-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libegl-dev libwayland-dev
       - name: Test all features
         run: cargo test --all-targets --all-features
       - name: Check release
@@ -61,10 +69,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Fcitx5 dev
+      - name: Install system deps (Fcitx5 + Slint)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+          sudo apt-get install -y \
+            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev \
+            libfontconfig1-dev libxkbcommon-dev libxcb1 libxcb-cursor-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libegl-dev libwayland-dev
       - name: no-default-features
         run: cargo check --no-default-features
       - name: no-default-features test
@@ -80,10 +92,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Fcitx5 dev
+      - name: Install system deps (Fcitx5 + Slint)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev
+          sudo apt-get install -y \
+            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev \
+            libfontconfig1-dev libxkbcommon-dev libxcb1 libxcb-cursor-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libegl-dev libwayland-dev
       - name: Build addon (.so, target/fcitx)
         run: |
           CARGO_TARGET_DIR=target/fcitx \
@@ -121,4 +137,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps (Fcitx5 + Slint)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libfcitx5core-dev libfcitx5utils-dev libfcitx5config-dev \
+            libfontconfig1-dev libxkbcommon-dev libxcb1 libxcb-cursor-dev \
+            libx11-dev libxext-dev libxrandr-dev libxinerama-dev libxi-dev \
+            libegl-dev libwayland-dev
       - run: cargo doc --no-deps --all-features
