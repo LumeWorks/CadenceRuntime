@@ -74,10 +74,9 @@ export component TrayCanType inherits SystemTrayIcon {
 
 export component App inherits Window {
     title: "CanType";
-    min-width: 460px;
-    min-height: 380px;
-    preferred-width: 470px;
-    preferred-height: 430px;
+    // Cố định width/height: WM tắt nút maximize (không resize được).
+    width: 470px;
+    height: 460px;
     background: Palette.background;
 
     // --- In-out properties (config) ---
@@ -314,7 +313,7 @@ export component App inherits Window {
             // Tab Hệ thống
             if root.tab-hien-tai == 1 : VerticalLayout {
                 padding: 16px;
-                spacing: 10px;
+                spacing: 8px;
 
                 // Trạng thái tổng quát (chấm + text)
                 HorizontalLayout {
@@ -445,9 +444,6 @@ export component App inherits Window {
                         }
                     }
                 }
-
-                // Đẩy nút xuống dưới
-                Rectangle { vertical-stretch: 1; }
 
                 // Nút Kiểm tra lại (align phải, không full width)
                 HorizontalLayout {
