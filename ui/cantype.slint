@@ -76,7 +76,7 @@ export component App inherits Window {
     title: "CanType";
     // Cố định width/height: WM tắt nút maximize (không resize được).
     width: 470px;
-    height: 460px;
+    height: 430px;
     background: Palette.background;
 
     // --- In-out properties (config) ---
@@ -305,15 +305,12 @@ export component App inherits Window {
                     }
                     Rectangle { horizontal-stretch: 1; }
                 }
-
-                // Đẩy phần còn lại xuống dưới (tab Cơ bản ít nội dung hơn).
-                Rectangle { vertical-stretch: 1; }
             }
 
             // Tab Hệ thống
             if root.tab-hien-tai == 1 : VerticalLayout {
-                padding: 16px;
-                spacing: 8px;
+                padding: 14px;
+                spacing: 6px;
 
                 // Trạng thái tổng quát (chấm + text)
                 HorizontalLayout {
