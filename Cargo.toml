@@ -73,9 +73,14 @@ slint-build = { version = "1.17", optional = true }
 # Feature `fcitx5`: bật build C++ shim và link Fcitx5Core thành addon `.so`.
 # Không default để `cargo test` mặc định không cần Fcitx5 dev headers.
 # `--all-features` bật cả hai (CI Fcitx5 cài dev headers).
+# Feature `diag` (Phase 3, không default): bật code diagnostic logging trong
+# `tuong_thich`. Trace chỉ chạy khi env `CANTYPE_DEBUG` set. Production build
+# không có `diag` → code diagnostic không tồn tại → zero cost trên hot path.
+# `--all-features` bật `diag` nhưng test không set env → no-op.
 default = ["app"]
 app = ["dep:slint", "dep:slint-build"]
 fcitx5 = ["dep:cc", "dep:pkg-config"]
+diag = []
 
 [lints.rust]
 unsafe_code = "deny"

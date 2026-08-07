@@ -59,6 +59,11 @@ typedef struct {
 ///
 /// `cursor`/`anchor` là offset **ký tự** (code point), theo `SurroundingText`.
 /// `text` là toàn bộ surrounding text (UTF-8), có thể bị C++ cắt giới hạn.
+///
+/// `frontend`/`program`/`capability` là metadata Phase 3: dùng cho frontend
+/// classification và diagnostic logging (KHÔNG cho verify-before-mutate).
+/// `frontend` là `ic->frontend()` (const char*), `program` là `ic->program()`
+/// (std::string), `capability` là `ic->capabilityFlags().toInteger()`.
 typedef struct {
     uint64_t context_id;
     uint64_t focus_generation;
@@ -67,6 +72,9 @@ typedef struct {
     uint32_t cursor;       /* offset ký tự */
     uint32_t anchor;       /* offset ký tự */
     CanTypeSlice text;      /* surrounding text UTF-8 */
+    CanTypeSlice frontend;  /* ic->frontend(), const char* (NUL-terminated) */
+    CanTypeSlice program;   /* ic->program(), std::string UTF-8 */
+    uint64_t capability;    /* ic->capabilityFlags().toInteger() */
 } CanTypeContextSnapshot;
 
 /// Bảng callback C++ cấp cho Rust triển khai `Host`. `ic` là opaque

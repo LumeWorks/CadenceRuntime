@@ -56,6 +56,83 @@ impl<'a> FcitxHost<'a> {
     }
 }
 
+/// Thông tin đầy đủ từ snapshot ngữ cảnh: [`BoiCanhNhap`] (cho runtime) +
+/// metadata Phase 3 (frontend/program/capability cho diagnostic và phân loại).
+///
+/// `boi_canh()` chỉ dùng `boi_canh`; diagnostic (`#[cfg(feature = "diag")]`)
+/// dùng thêm metadata. Cả hai đọc snapshot MỘT lần qua callback C++.
+#[cfg(feature = "diag")]
+struct ThongTinDayDu {
+    /// Ngữ cảnh nhập (cho `Host::boi_canh`).
+    boi_canh: BoiCanhNhap,
+    /// `ic->frontend()` (String owned, copy ra từ callback).
+    frontend: String,
+    /// `ic->program()` (String owned).
+    program: String,
+    /// `ic->capabilityFlags().toInteger()` (bitmask CapabilityFlag).
+    capability: u64,
+    /// `true` nếu `surroundingText().isValid()`.
+    surrounding_hop_le: bool,
+    /// Offset con trỏ (ký tự).
+    cursor: u32,
+    /// Offset anchor (ký tự).
+    anchor: u32,
+    /// Độ dài surrounding text theo byte (KHÔNG phải giá trị text).
+    surrounding_do_dai: usize,
+}
+
+impl<'a> FcitxHost<'a> {
+    /// Đọc snapshot ngữ cảnh đầy đủ qua callback C++, trả `None` nếu callback
+    /// lỗi/null. Đọc `text`/`frontend`/`program` thành String owned ngay trong
+    /// scope callback (ptr chỉ valid trong lời gọi).
+    #[cfg(feature = "diag")]
+    fn doc_thong_tin_day_du(&self) -> Option<ThongTinDayDu> {
+        let mut snapshot = CanTypeContextSnapshot {
+            context_id: 0,
+            focus_generation: 0,
+            has_focus: 0,
+            surrounding_valid: 0,
+            cursor: 0,
+            anchor: 0,
+            text: crate::fcitx5::CanTypeSlice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+            frontend: crate::fcitx5::CanTypeSlice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+            program: crate::fcitx5::CanTypeSlice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+            capability: 0,
+        };
+        if !self.lay_boi_canh(&mut snapshot) {
+            return None;
+        }
+        // SAFETY: `snapshot.{text,frontend,program}.ptr` do C++ điền, hợp lệ
+        // trong thời gian lời gọi (C++ borrow std::string/const char* sống
+        // cùng InputContext). `len` byte. `lay_chuoi_utf8` copy ra String owned
+        // ngay; sau khi trả, ptr không còn dùng. from_utf8 kiểm tra ranh giới;
+        // nếu null/invalid → "".
+        let text = unsafe { lay_chuoi_utf8(&snapshot.text) };
+        let frontend = unsafe { lay_chuoi_utf8(&snapshot.frontend) };
+        let program = unsafe { lay_chuoi_utf8(&snapshot.program) };
+        let boi_canh = chuyen_boi_canh(&snapshot, &text);
+        Some(ThongTinDayDu {
+            boi_canh,
+            frontend,
+            program,
+            capability: snapshot.capability,
+            surrounding_hop_le: snapshot.surrounding_valid != 0,
+            cursor: snapshot.cursor,
+            anchor: snapshot.anchor,
+            surrounding_do_dai: text.len(),
+        })
+    }
+}
+
 impl<'a> Host for FcitxHost<'a> {
     fn boi_canh(&self) -> BoiCanhNhap {
         let mut snapshot = CanTypeContextSnapshot {
@@ -69,6 +146,15 @@ impl<'a> Host for FcitxHost<'a> {
                 ptr: std::ptr::null(),
                 len: 0,
             },
+            frontend: crate::fcitx5::CanTypeSlice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+            program: crate::fcitx5::CanTypeSlice {
+                ptr: std::ptr::null(),
+                len: 0,
+            },
+            capability: 0,
         };
         if !self.lay_boi_canh(&mut snapshot) {
             // Callback lỗi/null → context rỗng, surrounding None.
@@ -268,6 +354,50 @@ fn xu_ly_phim_noi_bo(
                 return CanTypeXuLyKetQua::ChuyenTiep;
             };
             let kq = phien.xu_ly(&mut host, &su_kien);
+            // Phase 3 diagnostic: trace metadata KHÔNG chứa text user. Chỉ
+            // compile khi feature `diag` bật, và chỉ chạy khi env
+            // `CANTYPE_DEBUG` set (`ghi_chan_doan` check OnceLock). Production
+            // build không có `diag` → block không tồn tại → zero cost.
+            #[cfg(feature = "diag")]
+            {
+                if let Some(t) = host.doc_thong_tin_day_du() {
+                    let da_hien_thi = phien.da_hien_thi();
+                    let suffix_khop = t
+                        .boi_canh
+                        .van_ban_truoc_con_tro
+                        .as_ref()
+                        .map(|v| v.ends_with(da_hien_thi))
+                        .unwrap_or(false);
+                    let (route, action, outcome) = match kq {
+                        KetQuaXuLy::DaApDung => ("native", "da_xu_ly", "da_ap_dung"),
+                        KetQuaXuLy::ChuyenTiep => ("passthrough", "passthrough", "chuyen_tiep"),
+                        KetQuaXuLy::MatDongBo => ("mat_dong_bo", "reset", "mat_dong_bo"),
+                    };
+                    let cd = crate::tuong_thich::ChanDoan {
+                        context_id: t.boi_canh.context_id.0,
+                        frontend: crate::tuong_thich::phan_loai(&t.frontend),
+                        program: t.program,
+                        co_surrounding: (t.capability & crate::tuong_thich::co_cap::SURROUNDING)
+                            != 0,
+                        surrounding_hop_le: t.surrounding_hop_le,
+                        co_focus: t.boi_canh.dang_co_focus,
+                        focus_generation: t.boi_canh.the_he_focus,
+                        co_password: (t.capability & crate::tuong_thich::co_cap::PASSWORD) != 0,
+                        co_terminal: (t.capability & crate::tuong_thich::co_cap::TERMINAL) != 0,
+                        co_sensitive: (t.capability & crate::tuong_thich::co_cap::SENSITIVE) != 0,
+                        co_preedit: (t.capability & crate::tuong_thich::co_cap::PREDIT) != 0,
+                        surrounding_do_dai: t.surrounding_do_dai,
+                        cursor: t.cursor,
+                        anchor: t.anchor,
+                        route,
+                        hanh_dong: action,
+                        ket_qua: outcome,
+                        da_hien_thi_do_dai: da_hien_thi.len(),
+                        suffix_khop,
+                    };
+                    crate::tuong_thich::ghi_chan_doan(&cd);
+                }
+            }
             chuyen_ket_qua_xu_ly(kq)
         }
     }

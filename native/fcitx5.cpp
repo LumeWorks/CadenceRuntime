@@ -14,6 +14,7 @@
 
 #include "fcitx5_ffi.h"
 
+#include <fcitx-utils/capabilityflags.h>
 #include <fcitx-utils/flags.h>
 #include <fcitx-utils/handlertable.h>
 #include <fcitx-utils/i18n.h>
@@ -200,6 +201,22 @@ extern "C" int lay_boi_canh_cb(void *ic_ptr,
         out->text.ptr = nullptr;
         out->text.len = 0;
     }
+
+    // Phase 3 metadata: frontend/program/capability cho classification và
+    // diagnostic. KHÔNG dùng cho verify-before-mutate (chỉ metadata). frontend()
+    // trả const char* (NUL-terminated); program() trả const std::string&. Cả hai
+    // sống cùng InputContext, Rust copy ngay sau callback.
+    const char *frontend = ic->frontend();
+    out->frontend.ptr = reinterpret_cast<const uint8_t *>(frontend);
+    out->frontend.len = frontend ? std::strlen(frontend) : 0;
+
+    const auto &program = ic->program();
+    out->program.ptr =
+        reinterpret_cast<const uint8_t *>(program.data());
+    out->program.len = program.size();
+
+    out->capability =
+        static_cast<uint64_t>(ic->capabilityFlags().toInteger());
     return 0;
 }
 

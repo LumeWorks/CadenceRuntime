@@ -26,6 +26,9 @@ pub mod he_thong;
 pub mod host;
 pub(crate) mod phien;
 pub(crate) mod sua;
+/// Tương thích frontend Phase 3 — phân loại frontend Fcitx5 và diagnostic
+/// logging (KHÔNG log text user, gate bằng feature `diag` + env `CANTYPE_DEBUG`).
+pub(crate) mod tuong_thich;
 /// Logic GUI CanType (Slint). Chỉ build khi feature `app` bật.
 #[cfg(feature = "app")]
 pub mod ung_dung;

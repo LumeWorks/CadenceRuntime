@@ -84,6 +84,15 @@ pub struct CanTypeContextSnapshot {
     pub anchor: u32,
     /// Toàn bộ surrounding text (UTF-8).
     pub text: CanTypeSlice,
+    /// `ic->frontend()` (const char* NUL-terminated) — Phase 3 metadata cho
+    /// frontend classification và diagnostic. KHÔNG dùng cho verify-before-
+    /// mutate (chỉ metadata, không phải text user gõ).
+    pub frontend: CanTypeSlice,
+    /// `ic->program()` (std::string UTF-8) — Phase 3 metadata. Tên binary app.
+    pub program: CanTypeSlice,
+    /// `ic->capabilityFlags().toInteger()` — bitmask CapabilityFlag. Phase 3
+    /// dùng để phát hiện Password/Sensitive/Terminal/SurroundingText.
+    pub capability: u64,
 }
 
 /// Kết quả xử lý phím (khớp `CanTypeXuLyKetQua`).
