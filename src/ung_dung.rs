@@ -34,13 +34,10 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     // Thu thập trạng thái hệ thống (chỉ 1 lần khi GUI mở, không mỗi frame).
     let thong_tin = crate::he_thong::thu_thap();
     app.set_phien_lam_viec(thong_tin.phien_lam_viec.into());
-    app.set_framework_nhap_lieu(thong_tin.framework_nhap_lieu.into());
     app.set_trang_thai_addon(thong_tin.trang_thai_addon.into());
-    app.set_trang_thai_im(thong_tin.trang_thai_im.into());
-    app.set_che_do_cai_dat(thong_tin.che_do_cai_dat.into());
+    app.set_trang_thai_framework(thong_tin.trang_thai_framework.into());
     app.set_phien_ban_cantype(thong_tin.phien_ban_cantype.into());
     app.set_phien_ban_cadence(thong_tin.phien_ban_cadence.into());
-    app.set_sha_cadence(thong_tin.sha_cadence.into());
     app.set_trang_thai_tong_quan(thong_tin.trang_thai_tong_quan.into());
     app.set_khoe_manh(thong_tin.trang_thai == crate::he_thong::TrangThaiTichHop::HoatDong);
 
@@ -87,7 +84,8 @@ pub fn chay() -> Result<(), slint::PlatformError> {
     });
 
     // --- Callbacks tray ---
-    // Click trái tray → show cửa sổ.
+    // Click trái tray → show + un-minimize (raise/focus gần nhất an toàn: Slint
+    // không expose set_focus public, dùng show + set_minimized(false)).
     let app_mo = app.as_weak();
     tray.on_mo_cua_so(move || {
         let app = app_mo.unwrap();
@@ -95,14 +93,14 @@ pub fn chay() -> Result<(), slint::PlatformError> {
         app.window().set_minimized(false);
     });
 
-    // Toggle tiếng Việt từ tray → update window + ghi config.
-    let app_toggle = app.as_weak();
-    let tray_toggle = tray.as_weak();
-    tray.on_toggle_tieng_viet(move || {
-        let app = app_toggle.unwrap();
-        let tray = tray_toggle.unwrap();
+    // Đổi tiếng Việt/Anh từ tray → update window + tray + ghi config.
+    let app_tv = app.as_weak();
+    let tray_tv = tray.as_weak();
+    tray.on_dat_tieng_viet(move |bat| {
+        let app = app_tv.unwrap();
+        let tray = tray_tv.unwrap();
         let mut cfg = lay_config_tu_ui(&app);
-        cfg.dang_bat = !cfg.dang_bat;
+        cfg.dang_bat = bat;
         app.set_dang_bat(cfg.dang_bat);
         tray.set_dang_bat(cfg.dang_bat);
         if let Some(duong_dan) = cau_hinh::duong_dan_config()
@@ -144,10 +142,8 @@ pub fn chay() -> Result<(), slint::PlatformError> {
         let app = app_kt.unwrap();
         let thong_tin = crate::he_thong::thu_thap();
         app.set_phien_lam_viec(thong_tin.phien_lam_viec.into());
-        app.set_framework_nhap_lieu(thong_tin.framework_nhap_lieu.into());
         app.set_trang_thai_addon(thong_tin.trang_thai_addon.into());
-        app.set_trang_thai_im(thong_tin.trang_thai_im.into());
-        app.set_che_do_cai_dat(thong_tin.che_do_cai_dat.into());
+        app.set_trang_thai_framework(thong_tin.trang_thai_framework.into());
         app.set_trang_thai_tong_quan(thong_tin.trang_thai_tong_quan.into());
         app.set_khoe_manh(thong_tin.trang_thai == crate::he_thong::TrangThaiTichHop::HoatDong);
     });

@@ -38,8 +38,8 @@ pub struct ThongTinHeThong {
     pub framework_nhap_lieu: String,
     /// Trạng thái addon CanType.
     pub trang_thai_addon: String,
-    /// Trạng thái input method.
-    pub trang_thai_im: String,
+    /// Trạng thái framework nhập liệu (Fcitx5).
+    pub trang_thai_framework: String,
     /// Chế độ cài đặt (Development/System).
     pub che_do_cai_dat: String,
     /// Phiên bản CanType (từ Cargo.toml).
@@ -86,7 +86,7 @@ pub fn thu_thap() -> ThongTinHeThong {
         phien_lam_viec,
         framework_nhap_lieu: "Fcitx5".to_string(),
         trang_thai_addon: mo_ta_trang_thai_addon(trang_thai),
-        trang_thai_im: mo_ta_trang_thai_im(trang_thai),
+        trang_thai_framework: mo_ta_trang_thai_framework(trang_thai),
         che_do_cai_dat: xac_dinh_che_do_cai_dat(&fcitx_addon_dirs),
         phien_ban_cantype: PHIEN_BAN_CANTYPE.to_string(),
         phien_ban_cadence: PHIEN_BAN_CADENCE.to_string(),
@@ -185,10 +185,10 @@ fn mo_ta_trang_thai_addon(t: TrangThaiTichHop) -> String {
     }
 }
 
-/// Mô tả trạng thái IM.
-fn mo_ta_trang_thai_im(t: TrangThaiTichHop) -> String {
+/// Mô tả trạng thái framework nhập liệu (Fcitx5).
+fn mo_ta_trang_thai_framework(t: TrangThaiTichHop) -> String {
     match t {
-        TrangThaiTichHop::HoatDong => "Đang hoạt động".to_string(),
+        TrangThaiTichHop::HoatDong => "Hoạt động".to_string(),
         TrangThaiTichHop::ChuaNap => "Chưa nạp".to_string(),
         TrangThaiTichHop::ThieuAddon => "Không khả dụng".to_string(),
         TrangThaiTichHop::KhongTimThayFcitx => "Không tìm thấy Fcitx5".to_string(),
