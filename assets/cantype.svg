@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-License-Identifier: MPL-2.0 -->
-<!-- CanType app icon. Chữ C (CanType) xanh dương, nền trong suốt. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="none"/>
-  <path d="M22 10.5 A8 8 0 1 0 22 21.5" fill="none" stroke="#1565c0" stroke-width="3.5" stroke-linecap="round"/>
+<!-- CanType app icon: C monogram + typing caret. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="5" y1="4" x2="27" y2="29" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="2" y="2" width="28" height="28" rx="8" fill="url(#bg)"/>
+  <path
+    d="M21.15 10.15C19.78 8.77 18.05 8 16.05 8C11.52 8 8.25 11.44 8.25 16C8.25 20.56 11.52 24 16.05 24C18.05 24 19.78 23.23 21.15 21.85"
+    stroke="#FFFFFF"
+    stroke-width="3.15"
+    stroke-linecap="round"
+  />
+  <rect x="23.05" y="12.55" width="2.2" height="6.9" rx="1.1" fill="#FFFFFF"/>
 </svg>

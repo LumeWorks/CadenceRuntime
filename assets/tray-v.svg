@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-License-Identifier: MPL-2.0 -->
-<!-- Tray icon: tiếng Việt BẬT. Chữ V (Việt) xanh lá, nền trong suốt.
-     V khác hình dạng với E (tray-e.svg) để phân biệt không chỉ qua màu. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <rect width="16" height="16" fill="none"/>
-  <path d="M3 4 L8 12 L13 4" fill="none" stroke="#2e7d32" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- CanType tray icon: Vietnamese enabled. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="1" y="1" width="14" height="14" rx="4" fill="#16A34A"/>
+  <path
+    d="M4.15 4.35L8 11.65L11.85 4.35"
+    stroke="#FFFFFF"
+    stroke-width="2.15"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
 </svg>

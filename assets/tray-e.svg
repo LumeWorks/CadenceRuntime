@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- SPDX-License-Identifier: MPL-2.0 -->
-<!-- Tray icon: tiếng Việt TẮT. Chữ E (English) xám, nền trong suốt.
-     E có 3 vạch ngang, khác hoàn toàn V (2 đường chéo). -->
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <rect width="16" height="16" fill="none"/>
-  <path d="M5 3 L11 3 L11 5 L5 5 L5 8 L11 8 L5 8 L5 11 L11 11 L11 13 L5 13" fill="none" stroke="#757575" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<!-- CanType tray icon: English / Vietnamese disabled. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
+  <rect x="1" y="1" width="14" height="14" rx="4" fill="#5B6472"/>
+  <path
+    d="M11.35 4.25H5.05V11.75H11.35M5.05 8H10.45"
+    stroke="#FFFFFF"
+    stroke-width="1.95"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
 </svg>
