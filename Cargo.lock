@@ -673,8 +673,8 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cadence-ime"
-version = "2026.1.0"
-source = "git+https://github.com/LumeWorks/Cadence?rev=a5a586334208a4c084e062f1d77657b07ec3d580#a5a586334208a4c084e062f1d77657b07ec3d580"
+version = "2026.1.1"
+source = "git+https://github.com/LumeWorks/Cadence?rev=f5f0a23667f1de8fe5931431d305b74ad629faa7#f5f0a23667f1de8fe5931431d305b74ad629faa7"
 dependencies = [
  "unicode-normalization",
  "unicode-segmentation",

@@ -55,8 +55,8 @@ toml = { version = "0.8", default-features = false, features = ["parse", "displa
 [dependencies.cadence]
 package = "cadence-ime"
 git = "https://github.com/LumeWorks/Cadence"
-# Peeled commit của annotated tag `v2026.1.0` (xem commit cap nhat Cadence).
-rev = "a5a586334208a4c084e062f1d77657b07ec3d580"
+# Peeled commit của annotated tag `v2026.1.1` (xem commit cap nhat Cadence).
+rev = "f5f0a23667f1de8fe5931431d305b74ad629faa7"
 
 # Build script: compile C++ shim Fcitx5 và link Fcitx5Core. Chỉ dùng khi feature
 # `fcitx5` bật; `cargo test` mặc định (không feature) không cần Fcitx5 dev.

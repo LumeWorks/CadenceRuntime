@@ -50,8 +50,9 @@ set `PKG_CONFIG_PATH`.
 ## Cadence
 
 Pin theo full commit SHA trong `Cargo.toml`, không theo branch. Hiện pin
-`v2026.1.0` (peeled `a5a586334208a4c084e062f1d77657b07ec3d580`). Tag
-`v2026.0.1` trong spec không tồn tại; `v2026.1.0` là bản khớp spec. Xem
+`v2026.1.1` (peeled `f5f0a23667f1de8fe5931431d305b74ad629faa7`). Tag
+`v2026.0.1` trong spec không tồn tại; `v2026.1.0` là bản khớp spec ban đầu,
+`v2026.1.1` fix thứ tự tone mark linh hoạt (`voiws` → `với`). Xem
 `docs/PHASE_1_RUNTIME.md` cho API Cadence đang dùng. Không commit
 `path = "../Cadence"` hay `.cargo/config.toml` chứa đường dẫn local.
 
