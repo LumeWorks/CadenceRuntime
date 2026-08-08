@@ -162,9 +162,11 @@ fn di_chuyen_con_tro_relinquish() {
 }
 
 #[test]
-fn zero_preedit_moi_action_la_chen_thaythe_chuyentiep() {
-    // Bất biến §16: không tồn tại preedit action. Kiểm tra hành vi: mọi action
-    // ghi vào history phải là Chen/ThayThe/ChuyenTiep (enum không có nhánh khác).
+fn zero_visible_composition_moi_action_la_route_hop_le() {
+    // Bất biến Phase 3C: mọi action ghi vào history phải thuộc một route hợp lệ.
+    // VerifiedReplace: Chen/ThayThe/ChuyenTiep. PlainComposition:
+    // CapNhatSoanThao/KetThucSoanThao/XoaSoanThao. Host mặc định có surrounding →
+    // VerifiedReplace, nên chỉ thấy Chen/ThayThe/ChuyenTiep.
     let mut phien = PhienNhap::moi(cantype::ContextId(1));
     let mut host = HostMoPhong::moi(cantype::ContextId(1));
     go_chuoi(&mut phien, &mut host, "tieengs");
@@ -172,7 +174,12 @@ fn zero_preedit_moi_action_la_chen_thaythe_chuyentiep() {
     nhap(&mut phien, &mut host, SuKienNhap::RanhGioiTu(' '));
     for hd in &host.lich_su_hanh_dong {
         match hd {
-            HanhDong::Chen(_) | HanhDong::ThayThe(_) | HanhDong::ChuyenTiep => {}
+            HanhDong::Chen(_)
+            | HanhDong::ThayThe(_)
+            | HanhDong::CapNhatSoanThao(_)
+            | HanhDong::KetThucSoanThao(_)
+            | HanhDong::XoaSoanThao
+            | HanhDong::ChuyenTiep => {}
         }
     }
 }

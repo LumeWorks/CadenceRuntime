@@ -29,8 +29,10 @@
 #include <fcitx/inputcontextproperty.h>
 #include <fcitx/inputcontextmanager.h>
 #include <fcitx/inputmethodengine.h>
+#include <fcitx/inputpanel.h>
 #include <fcitx/instance.h>
 #include <fcitx/surroundingtext.h>
+#include <fcitx/text.h>
 
 #include <cstdint>
 #include <cstring>
@@ -249,6 +251,55 @@ extern "C" int thay_the_cb(void *ic_ptr, uint32_t xoa_ky_tu,
     return 0;
 }
 
+/// Cập nhật client preedit (PlainComposition). Text gửi với NO formatting
+/// flags (`TextFormatFlag::NoFlag`) — zero visible decoration (không underline,
+/// không highlight, không bold/italic/strike). Con trỏ composition đặt cuối
+/// text. Trả 0=DaPhat, 1=KhongPhat, 2=KhongChac.
+extern "C" int cap_nhat_soan_thao_cb(void *ic_ptr, const uint8_t *ptr,
+                                      size_t len) {
+    auto *ic = static_cast<fcitx::InputContext *>(ic_ptr);
+    if (ic == nullptr) {
+        return 1;
+    }
+    std::string text(reinterpret_cast<const char *>(ptr), len);
+    // NoFlag = zero visible decoration. setCursor(byte_offset) đặt con trỏ
+    // composition cuối text (byte offset, không phải ký tự).
+    fcitx::Text preedit(text, fcitx::TextFormatFlag::NoFlag);
+    preedit.setCursor(static_cast<int>(text.size()));
+    ic->inputPanel().setClientPreedit(preedit);
+    ic->updatePreedit();
+    return 0;
+}
+
+/// Kết thúc composition: commit text vào document rồi clear client preedit
+/// (PlainComposition). Trả 0/1/2.
+extern "C" int ket_thuc_soan_thao_cb(void *ic_ptr, const uint8_t *ptr,
+                                     size_t len) {
+    auto *ic = static_cast<fcitx::InputContext *>(ic_ptr);
+    if (ic == nullptr || (ptr == nullptr && len > 0)) {
+        return 1;
+    }
+    std::string text(reinterpret_cast<const char *>(ptr), len);
+    ic->commitString(text);
+    // Clear client preedit sau khi commit. inputPanel().reset() xóa
+    // clientPreedit/preedit/candidates; updatePreedit() đẩy (rỗng) tới client.
+    ic->inputPanel().reset();
+    ic->updatePreedit();
+    return 0;
+}
+
+/// Xóa client preedit (PlainComposition). Dùng khi composition trở thành rỗng
+/// (backspace đến empty). Trả 0/1/2.
+extern "C" int xoa_soan_thao_cb(void *ic_ptr) {
+    auto *ic = static_cast<fcitx::InputContext *>(ic_ptr);
+    if (ic == nullptr) {
+        return 1;
+    }
+    ic->inputPanel().reset();
+    ic->updatePreedit();
+    return 0;
+}
+
 // ---------------------------------------------------------------------------
 // Engine.
 // ---------------------------------------------------------------------------
@@ -281,6 +332,7 @@ public:
         if (prop == nullptr) {
             return;
         }
+        clearPreedit(event.inputContext());
         prop->kichHoat();
     }
 
@@ -293,6 +345,7 @@ public:
         if (prop == nullptr) {
             return;
         }
+        clearPreedit(event.inputContext());
         prop->voHieuHoa();
     }
 
@@ -344,6 +397,9 @@ public:
         bang.lay_boi_canh = lay_boi_canh_cb;
         bang.chen = chen_cb;
         bang.thay_the = thay_the_cb;
+        bang.cap_nhat_soan_thao = cap_nhat_soan_thao_cb;
+        bang.ket_thuc_soan_thao = ket_thuc_soan_thao_cb;
+        bang.xoa_soan_thao = xoa_soan_thao_cb;
 
         auto ket_qua = cantype_xu_ly_phim(prop->phien, &snapshot, &bang);
 
@@ -368,11 +424,23 @@ public:
         if (prop == nullptr) {
             return;
         }
+        clearPreedit(event.inputContext());
         // reset chỉ gọi khi ic focused (header Fcitx5); active vẫn true.
         prop->datLai();
     }
 
 private:
+    /// Xóa client preedit (PlainComposition). Idempotent: clear rỗng là no-op.
+    /// Dùng cho lifecycle (activate/deactivate/reset/focus-out) để đảm bảo
+    /// không preedit stale khi runtime relinquish.
+    static void clearPreedit(fcitx::InputContext *ic) {
+        if (ic == nullptr) {
+            return;
+        }
+        ic->inputPanel().reset();
+        ic->updatePreedit();
+    }
+
     /// Lấy property từ event, trả `nullptr` nếu ic null. `property()` tạo
     /// lazy; cho activate/deactivate/reset điều này hợp lý vì ic đang dùng IM
     /// này.
@@ -399,6 +467,7 @@ private:
         if (prop == nullptr || prop->phien == nullptr) {
             return;
         }
+        clearPreedit(ic);
         prop->voHieuHoa();
     }
 

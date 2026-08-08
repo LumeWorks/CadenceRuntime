@@ -35,6 +35,18 @@ pub struct HostMoPhong {
     /// (mô phỏng host nhận action nhưng runtime không biết). `false` để không
     /// áp dụng gì (mô phỏng host chưa nhận).
     pub khong_chac_ap_dung: bool,
+    /// `true` nếu client có capability SurroundingText. Mặc định theo
+    /// `cung_cap_surrounding`. Route selection dùng capability này.
+    pub co_surrounding: bool,
+    /// `true` nếu client hỗ trợ preedit (CapabilityFlag::Preedit). Khi
+    /// `false`, PlainComposition không khả dụng → Passthrough.
+    pub co_preedit: bool,
+    /// `true` nếu context nhạy cảm (password, sensitive). Khi `true`, runtime
+    /// ưu tiên Passthrough.
+    pub co_sensitive: bool,
+    /// Nội dung client preedit hiện tại (PlainComposition). Rỗng khi không có
+    /// composition đang hiển thị.
+    pub preedit: String,
 }
 
 impl HostMoPhong {
@@ -51,6 +63,10 @@ impl HostMoPhong {
             lich_su_hanh_dong: Vec::new(),
             cung_cap_surrounding: true,
             khong_chac_ap_dung: false,
+            co_surrounding: true,
+            co_preedit: false,
+            co_sensitive: false,
+            preedit: String::new(),
         }
     }
 
@@ -70,6 +86,21 @@ impl HostMoPhong {
                     .replace_range(bat_dau..self.vi_tri_con_tro, &ke.chen);
                 self.vi_tri_con_tro = bat_dau + ke.chen.len();
             }
+            HanhDong::CapNhatSoanThao(s) => {
+                // Cập nhật client preedit (PlainComposition). Text chưa vào
+                // document; nằm trong client composition.
+                self.preedit = s.clone();
+            }
+            HanhDong::KetThucSoanThao(s) => {
+                // Commit text vào document, clear preedit (PlainComposition).
+                self.van_ban.insert_str(self.vi_tri_con_tro, s);
+                self.vi_tri_con_tro += s.len();
+                self.preedit.clear();
+            }
+            HanhDong::XoaSoanThao => {
+                // Clear client preedit (PlainComposition).
+                self.preedit.clear();
+            }
             HanhDong::ChuyenTiep => {}
         }
     }
@@ -87,6 +118,9 @@ impl Host for HostMoPhong {
             the_he_focus: self.the_he_focus,
             dang_co_focus: self.dang_co_focus,
             van_ban_truoc_con_tro: van_ban_truoc,
+            co_surrounding: self.co_surrounding,
+            co_preedit: self.co_preedit,
+            co_sensitive: self.co_sensitive,
         }
     }
 

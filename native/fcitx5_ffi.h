@@ -87,6 +87,14 @@ typedef struct {
     int (*chen)(void *ic, const uint8_t *ptr, size_t len);
     /* Xóa `xoa_ky_tu` ký tự trước con trỏ rồi commit string. Trả 0/1/2. */
     int (*thay_the)(void *ic, uint32_t xoa_ky_tu, const uint8_t *ptr, size_t len);
+    /* Cập nhật client preedit (PlainComposition, NO formatting flags).
+       Trả 0/1/2. */
+    int (*cap_nhat_soan_thao)(void *ic, const uint8_t *ptr, size_t len);
+    /* Kết thúc composition: commit text rồi clear preedit (PlainComposition).
+       Trả 0/1/2. */
+    int (*ket_thuc_soan_thao)(void *ic, const uint8_t *ptr, size_t len);
+    /* Xóa client preedit (PlainComposition). Trả 0/1/2. */
+    int (*xoa_soan_thao)(void *ic);
 } CanTypeHostBang;
 
 /// Kết quả xử lý phím (KetQuaXuLy). C++ dùng để quyết accept/filter.

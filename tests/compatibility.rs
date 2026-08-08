@@ -36,53 +36,49 @@ fn go_chuoi(phien: &mut PhienNhap, host: &mut HostMoPhong, s: &str) {
 }
 
 // ---------------------------------------------------------------------------
-// Frontend không surrounding (LibreOffice GTK3, XIM).
+// Frontend không surrounding, không preedit → Passthrough (Phase 3C).
 // ---------------------------------------------------------------------------
 
-/// LibreOffice GTK3: capability có SurroundingText nhưng `sur_valid=0` cho
-/// mọi key. Runtime không NativeReplace → phím đầu Chen thuần, phím kế bị
-/// chặn (relinquish + ChuyểnTiep), không delete mù.
+/// Frontend không surrounding capability VÀ không preedit (co_preedit=false):
+/// mọi phím passthrough, KHÔNG Chen, KHÔNG ThayThe, KHÔNG preedit. Phase 3C thay
+/// đổi hành vi so với Phase 3: phím đầu không còn Chen thuần khi không route khả
+/// dụng — toàn bộ composition forward raw key cho app.
 #[test]
-fn frontend_khong_surrounding_phim_dau_chen_khong_delete_mù() {
+fn frontend_khong_surrounding_khong_preedit_passthrough() {
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
+    host.co_surrounding = false;
+    host.co_preedit = false;
 
-    // Phím đầu "a": da_hien_thi rỗng → Chen thuần OK (không cần surrounding).
+    // Phím đầu "a": không route khả dụng → Passthrough (KHÔNG Chen).
     let kq = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
-    assert_eq!(kq, KetQuaXuLy::DaApDung);
-    assert_eq!(host.van_ban, "a");
-    assert_eq!(phien.da_hien_thi(), "a");
+    assert_eq!(kq, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "");
+    assert_eq!(phien.da_hien_thi(), "");
 
-    // Phím "s" kế: da_hien_thi="a" không rỗng, surrounding None → không
-    // verify được → relinquish + ChuyểnTiep, KHÔNG ThayThe, không delete "a".
-    let so_action_truoc = host.lich_su_hanh_dong.len();
+    // Phím "s" kế: cũng passthrough. Không Chen, không ThayThe.
     let kq = phien.xu_ly(&mut host, &SuKienNhap::KyTu('s'));
     assert_eq!(kq, KetQuaXuLy::ChuyenTiep);
-    // Không có action host mới (relinquish là internal, không thuc_thi).
-    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
-    // Text "a" không bị xóa.
-    assert_eq!(host.van_ban, "a");
-    // Runtime đã relinquish ownership.
+    assert_eq!(host.van_ban, "");
     assert_eq!(phien.da_hien_thi(), "");
 }
 
-/// Frontend không surrounding: Backspace khi đang sở hữu suffix → relinquish +
-/// ChuyểnTiep, KHÔNG xóa lùi trong Cadence (không có gì verify vị trí cursor).
+/// Frontend không surrounding capability, không preedit: Backspace → passthrough
+/// (Cadence rỗng → KhongDoi → ChuyểnTiep).
 #[test]
-fn frontend_khong_surrounding_backspace_khong_xoa_lui_mù() {
+fn frontend_khong_surrounding_khong_preedit_backspace_passthrough() {
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
+    host.co_surrounding = false;
+    host.co_preedit = false;
 
-    // Phím đầu Chen (OK). Phím kế bị chặn nên da_hien_thi rỗng.
-    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
-    phien.xu_ly(&mut host, &SuKienNhap::KyTu('s')); // ChuyểnTiep, relinquish
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a')); // ChuyểnTiep (passthrough)
 
-    // Backspace: da_hien_thi rỗng, Cadence rỗng → Cadence KhongDoi → ChuyểnTiep.
     let kq = phien.xu_ly(&mut host, &SuKienNhap::XoaLui);
     assert_eq!(kq, KetQuaXuLy::ChuyenTiep);
-    assert_eq!(host.van_ban, "a");
+    assert_eq!(host.van_ban, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -225,8 +221,8 @@ fn partial_dispatch_host_ap_dung_runtime_khong_delete_cu() {
 // Two contexts với contract frontend khác nhau.
 // ---------------------------------------------------------------------------
 
-/// Context A (Qt, surrounding có) gõ được; context B (LibreOffice, không
-/// surrounding) passthrough. A không bị B ảnh hưởng.
+/// Context A (Qt, surrounding có) gõ được; context B (không surrounding, không
+/// preedit) passthrough. A không bị B ảnh hưởng.
 #[test]
 fn hai_context_contract_khac_doc_lap() {
     let mut phien_a = PhienNhap::moi(ContextId(1));
@@ -234,18 +230,20 @@ fn hai_context_contract_khac_doc_lap() {
     let mut host_a = HostMoPhong::moi(ContextId(1));
     let mut host_b = HostMoPhong::moi(ContextId(2));
     host_b.cung_cap_surrounding = false; // B không surrounding
+    host_b.co_surrounding = false; // B không capability surrounding
+    host_b.co_preedit = false; // B không preedit → Passthrough
 
-    // A gõ "as" → "á" (Route A).
+    // A gõ "as" → "á" (VerifiedReplace, có surrounding).
     go_chuoi(&mut phien_a, &mut host_a, "as");
     assert_eq!(host_a.van_ban, "á");
     assert_eq!(phien_a.da_hien_thi(), "á");
 
-    // B gõ "as" → "a" (phím đầu OK, "s" bị chặn passthrough).
+    // B gõ "as" → cả hai phím passthrough (không route khả dụng).
     let kq_b0 = phien_b.xu_ly(&mut host_b, &SuKienNhap::KyTu('a'));
-    assert_eq!(kq_b0, KetQuaXuLy::DaApDung);
+    assert_eq!(kq_b0, KetQuaXuLy::ChuyenTiep);
     let kq_b1 = phien_b.xu_ly(&mut host_b, &SuKienNhap::KyTu('s'));
     assert_eq!(kq_b1, KetQuaXuLy::ChuyenTiep);
-    assert_eq!(host_b.van_ban, "a");
+    assert_eq!(host_b.van_ban, "");
 
     // A vẫn "á", không bị B ảnh hưởng.
     assert_eq!(host_a.van_ban, "á");

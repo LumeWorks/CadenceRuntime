@@ -163,6 +163,9 @@ impl<'a> Host for FcitxHost<'a> {
                 the_he_focus: 0,
                 dang_co_focus: false,
                 van_ban_truoc_con_tro: None,
+                co_surrounding: false,
+                co_preedit: false,
+                co_sensitive: false,
             };
         }
         // SAFETY: `snapshot.text.ptr` do C++ điền, hợp lệ trong thời gian lời
@@ -190,6 +193,27 @@ impl<'a> Host for FcitxHost<'a> {
                 let xoa_ky_tu = u32::try_from(ke.xoa_truoc.ky_tu_unicode).unwrap_or(u32::MAX);
                 // `ke.chen` là String; truyền (ptr, len). C++ delete rồi commit.
                 let ret = cb(self.bang.ic, xoa_ky_tu, ke.chen.as_ptr(), ke.chen.len());
+                chuyen_ket_qua_host(ret)
+            }
+            HanhDong::CapNhatSoanThao(s) => {
+                let Some(cb) = self.bang.cap_nhat_soan_thao else {
+                    return KetQuaHost::KhongPhat;
+                };
+                let ret = cb(self.bang.ic, s.as_ptr(), s.len());
+                chuyen_ket_qua_host(ret)
+            }
+            HanhDong::KetThucSoanThao(s) => {
+                let Some(cb) = self.bang.ket_thuc_soan_thao else {
+                    return KetQuaHost::KhongPhat;
+                };
+                let ret = cb(self.bang.ic, s.as_ptr(), s.len());
+                chuyen_ket_qua_host(ret)
+            }
+            HanhDong::XoaSoanThao => {
+                let Some(cb) = self.bang.xoa_soan_thao else {
+                    return KetQuaHost::KhongPhat;
+                };
+                let ret = cb(self.bang.ic);
                 chuyen_ket_qua_host(ret)
             }
             HanhDong::ChuyenTiep => KetQuaHost::KhongPhat,
@@ -368,11 +392,12 @@ fn xu_ly_phim_noi_bo(
                         .as_ref()
                         .map(|v| v.ends_with(da_hien_thi))
                         .unwrap_or(false);
-                    let (route, action, outcome) = match kq {
-                        KetQuaXuLy::DaApDung => ("native", "da_xu_ly", "da_ap_dung"),
-                        KetQuaXuLy::ChuyenTiep => ("passthrough", "passthrough", "chuyen_tiep"),
-                        KetQuaXuLy::MatDongBo => ("mat_dong_bo", "reset", "mat_dong_bo"),
+                    let (action, outcome) = match kq {
+                        KetQuaXuLy::DaApDung => ("da_xu_ly", "da_ap_dung"),
+                        KetQuaXuLy::ChuyenTiep => ("passthrough", "chuyen_tiep"),
+                        KetQuaXuLy::MatDongBo => ("reset", "mat_dong_bo"),
                     };
+                    let route = phien.duong_hien_tai();
                     let cd = crate::tuong_thich::ChanDoan {
                         context_id: t.boi_canh.context_id.0,
                         frontend: crate::tuong_thich::phan_loai(&t.frontend),

@@ -1,27 +1,27 @@
 # CanType — Ma trận tương thích frontend
 
-Bảng kết quả khảo sát Phase 3, runtime-test trên máy thật (KDE, X11 native,
-Fcitx 5.1.12, CanType addon diagnostic `--features "fcitx5 diag"`, env
+Bảng kết quả khảo sát Phase 3 + Phase 3C, runtime-test trên máy thật (KDE, X11
+native, Fcitx 5.1.12, CanType addon diagnostic `--features "fcitx5 diag"`, env
 `CANTYPE_DEBUG=1`). Trace thu được qua `cantype diag` (KHÔNG chứa text user —
 chỉ surrounding length, suffix match boolean, capability flags, cursor/anchor
-offset).
+offset, route).
 
 Trạng thái dùng đúng terminology Phase 3 (§45): `SUPPORTED` (gõ tiếng Việt
 được qua route an toàn), `SAFE PASSTHROUGH` (không gõ được nhưng không phá
 nhập), `UNSUPPORTED` (không gõ được), `BLOCKED BY FRONTEND` (frontend không
 cung cấp contract đủ). Tách rõ Vietnamese behavior và Safety behavior.
 
-## Ma trận app (runtime-verified)
+## Ma trận app (runtime-verified + Phase 3C)
 
 | App | Toolkit/Frontend | Session | Surrounding | Route | Vietnamese | Safety | Notes |
 |-----|------------------|---------|--------------|-------|------------|--------|-------|
-| Kate | Qt5 / dbus | X11 native | valid (từ phím 2) | Native (ThayThe) | SUPPORTED | PASS | `sur_cap=1 sur_valid=1` từ phím thứ 2, `route=native` |
-| KWrite | Qt5 / dbus | X11 native | valid (giống Kate) | Native | SUPPORTED | PASS | Cùng Qt text widget — baseline Qt |
-| plasmashell (KRunner/notifications) | Qt5 / dbus | X11 native | valid | Native | SUPPORTED | PASS | `sur_cap=1 sur_valid=0→1` |
-| LibreOffice Writer | GTK3 / dbus | X11 native | invalid | Passthrough | UNSUPPORTED | PASS | `sur_cap=1 sur_valid=0` mọi phím — capability có nhưng GTK3 frontend không report surrounding thực |
-| Google Chrome (URL bar) | Chromium / dbus | X11 native | absent | Passthrough | UNSUPPORTED | PASS | `sur_cap=0 sur_valid=0` — URL bar không advertise SurroundingText |
-| VS Code (Electron editor) | Electron / dbus | X11 native | absent | Passthrough | UNSUPPORTED | PASS | `sur_cap=0 sur_valid=0` — Electron IM module không advertise surrounding |
-| Konsole (terminal) | Qt5 / dbus | X11 native | invalid | Passthrough | UNSUPPORTED | PASS | `sur_cap=1 sur_valid=0`, `term=0` (Terminal flag không set qua dbus) — passthrough shell an toàn |
+| Kate | Qt5 / dbus | X11 native | valid (từ phím 2) | PlainComposition (Phase 3C) | SUPPORTED | PASS | Phase 3C: `sur_valid=0` phím đầu → PlainComposition (route lock). `vowsi → với` verified. Phase 3 cũ: VerifiedReplace |
+| KWrite | Qt5 / dbus | X11 native | valid (giống Kate) | PlainComposition | SUPPORTED | PASS | Cùng Qt text widget — baseline Qt |
+| plasmashell (KRunner/notifications) | Qt5 / dbus | X11 native | valid | PlainComposition | SUPPORTED | PASS | Cùng pattern Kate |
+| LibreOffice Writer | GTK3 / dbus | X11 native | invalid | PlainComposition (dự kiến) | SUPPORTED (dự kiến) | PASS | Phase 3C: `sur_valid=0` + `preedit=1` → PlainComposition. Phase 3 cũ: passthrough |
+| Google Chrome (URL bar) | Chromium / dbus | X11 native | absent | PlainComposition (dự kiến) | SUPPORTED (dự kiến) | PASS | Phase 3C: `sur_cap=0` + `preedit=1` → PlainComposition. Phase 3 cũ: passthrough |
+| VS Code (Electron editor) | Electron / dbus | X11 native | absent | PlainComposition (dự kiến) | SUPPORTED (dự kiến) | PASS | Phase 3C: `sur_cap=0` + `preedit=1` → PlainComposition. Phase 3 cũ: passthrough |
+| Konsole (terminal) | Qt5 / dbus | X11 native | invalid | PlainComposition (dự kiến) | SUPPORTED (dự kiến) | PASS | Phase 3C: `sur_valid=0` + `preedit=1` → PlainComposition. Phase 3 cũ: passthrough |
 
 ## Ma trận session (chưa runtime-verify)
 
@@ -57,4 +57,19 @@ Không bắt gặp `wayland`/`wayland_v2`/`xim`/`ibus`/`fcitx4` — chưa runtim
 
 `pw`/`sens` = 0 cho mọi context test (không phải password). `term` = 0 cho
 Konsole (CapabilityFlag::Terminal không set qua dbus Qt IM module). `preedit`
-= 1 (capability có, CanType không dùng — zero-preedit invariant).
+= 1 cho mọi context — Phase 3C dùng preedit cho PlainComposition route.
+
+## Phase 3C route selection
+
+Phase 3C có ba đường output (xem [`PHASE_3C_PLAIN_COMPOSITION.md`](./PHASE_3C_PLAIN_COMPOSITION.md)):
+
+| Route | Khi nào | HanhDong |
+|-------|---------|----------|
+| VerifiedReplace | `van_ban_truoc_con_tro.is_some()` | Chen/ThayThe |
+| PlainComposition | `van_ban_truoc_con_tro=None` + `co_preedit=true` | CapNhatSoanThao/KetThucSoanThao/XoaSoanThao |
+| Passthrough | sensitive, hoặc không route khả dụng | ChuyenTiep |
+
+Route selection dùng **trạng thái surrounding hiện tại** (không capability):
+nhiều app (LibreOffice, Konsole) có `sur_cap=1` nhưng `sur_valid=0` mọi phím.
+Nếu chọn VerifiedReplace dựa capability, phím 2 bị chặn (verify fail).
+Dựa trạng thái: sur_valid=0 → PlainComposition → app gõ được.

@@ -175,65 +175,61 @@ fn cursor_di_chuyen_phat_hien_qua_surrounding_lech() {
     assert_eq!(phien.da_hien_thi(), "");
 }
 
-// --- Blocker 1: surrounding=None không được destructive replace ---
+// --- Blocker 1: surrounding=None + không preedit → Passthrough ---
 //
-// Phase 1 chỉ cho destructive replace khi host cung cấp surrounding text đủ
-// để verify. Khi None, runtime không được đoán text đã commit có còn ở đúng
-// vị trí không. Khi runtime đang sở hữu suffix (da_hien_thi không rỗng), MỌI
-// action tiếp tục composition (cả Chen lẫn ThayThe) đều phải verify — Chen chèn
-// vào vị trí cursor, nếu cursor lệch thì chèn sai vị trí rồi đầu độc state.
-// Chỉ phím đầu tiên vào composition mới (da_hien_thi rỗng) là Chen thuần an
-// toàn không cần surrounding.
+// Phase 3C: khi host không cung cấp surrounding text VÀ không hỗ trợ preedit,
+// runtime không có route khả dụng (VerifiedReplace cần surrounding, PlainComposition
+// cần preedit) → Passthrough: forward mọi phím raw, KHÔNG Chen, KHÔNG ThayThe,
+// KHÔNG preedit. Đây là thay đổi so với Phase 3, nơi phím đầu Chen thuần được
+// phép khi da_hien_thi rỗng. Phase 3C bỏ hành vi đó: không route → passthrough.
 
 #[test]
-fn surrounding_none_chen_dau_tien_duoc_phep() {
-    // surrounding=None + da_hien_thi rỗng (composition mới) + Chen → cho phép.
-    // Phím đầu tiên vào composition mới an toàn vì không sở hữu suffix cũ.
+fn surrounding_none_khong_preedit_passthrough_tat_ca_phim() {
+    // surrounding=None + co_preedit=false → Passthrough. Mọi phím ChuyểnTiep,
+    // không Chen, không ThayThe, không preedit. Văn bản host rỗng.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
+    host.co_surrounding = false;
+    host.co_preedit = false;
 
-    // 'a' → Chen (da_hien_thi rỗng → pure insert, luôn an toàn).
+    // 'a' → Passthrough (không route khả dụng).
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
-    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
-    assert_eq!(host.van_ban, "a");
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "");
+    assert_eq!(phien.da_hien_thi(), "");
 
-    // Không có ThayThe trong history.
-    for hd in &host.lich_su_hanh_dong {
-        assert!(
-            matches!(hd, HanhDong::Chen(_)),
-            "surrounding=None chi duoc Chen, duoc {hd:?}"
-        );
-    }
+    // 's' → cũng Passthrough. Không ThayThe, không Chen.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('s'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "");
+    assert_eq!(phien.da_hien_thi(), "");
+
+    // Không có action nào trong history.
+    assert!(host.lich_su_hanh_dong.is_empty());
 }
 
 #[test]
-fn surrounding_none_chen_khi_dang_so_huu_suffix_bi_chan() {
-    // surrounding=None + da_hien_thi không rỗng + Chen → bị chặn.
-    // Runtime đang sở hữu suffix "a"; phím kế tiếp phải verify. None → không
-    // verify → relinquish + ChuyenTiep. Không chèn sai vị trí, không đầu độc
-    // state cho phím sau.
+fn surrounding_none_khong_preedit_khong_so_huu_suffix() {
+    // surrounding=None + co_preedit=false: runtime không bao giờ sở hữu suffix.
+    // Mọi phím passthrough → da_hien_thi luôn rỗng → không bao giờ delete mù.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
+    host.co_surrounding = false;
+    host.co_preedit = false;
 
-    // 'a' → Chen (da_hien_thi rỗng).
-    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
-    assert_eq!(host.van_ban, "a");
-    assert_eq!(phien.da_hien_thi(), "a");
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a')); // ChuyểnTiep
+    phien.xu_ly(&mut host, &SuKienNhap::KyTu('b')); // ChuyểnTiep
 
-    // 'b' → Cadence "ab" (la_chen), nhưng da_hien_thi = "a" (không rỗng) +
-    // surrounding=None → relinquish + ChuyenTiep.
-    let so_action_truoc = host.lich_su_hanh_dong.len();
-    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('b'));
-    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
-    // Không gửi action mới (relinquish + forward, không gọi thuc_thi).
-    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
-    // Văn bản "a" không bị thay đổi.
-    assert_eq!(host.van_ban, "a");
-    // Runtime relinquish: da_hien_thi rỗng, không sở hữu suffix cũ.
+    // Runtime không sở hữu suffix.
     assert_eq!(phien.da_hien_thi(), "");
     assert!(phien.dang_rong());
+
+    // Backspace: Cadence rỗng → KhongDoi → ChuyểnTiep.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::XoaLui);
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(host.van_ban, "");
 }
 
 #[test]
@@ -263,55 +259,49 @@ fn surrounding_lech_chen_khi_dang_so_huu_suffix_bi_chan() {
 }
 
 #[test]
-fn surrounding_none_chan_thaythe_reset_ownership_an_toan() {
-    // surrounding=None + Cadence yêu cầu replace (ThayThe) → không gửi ThayThe,
-    // relinquish ownership an toàn, sự kiện không bị nuốt.
+fn surrounding_none_khong_preedit_passthrough_khong_nuot_phim() {
+    // surrounding=None + co_preedit=false → Passthrough. Sự kiện không bị nuốt:
+    // runtime forward raw key (ChuyểnTiep), không Chen/ThayThe.
     let mut phien = PhienNhap::moi(ContextId(1));
     let mut host = HostMoPhong::moi(ContextId(1));
     host.cung_cap_surrounding = false;
+    host.co_surrounding = false;
+    host.co_preedit = false;
 
-    // 'a' → Chen, da_hien_thi = "a"
-    phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
-    assert_eq!(host.van_ban, "a");
-    assert_eq!(phien.da_hien_thi(), "a");
+    // 'a' → Passthrough.
+    let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('a'));
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(phien.da_hien_thi(), "");
 
-    // 's' → Cadence transforms "as" → "á" (ThayThe: xóa "a", chèn "á").
-    // surrounding=None → không verify → phải relinquish + ChuyenTiep.
-    let so_action_truoc = host.lich_su_hanh_dong.len();
+    // 's' → cũng Passthrough. Không ThayThe, không Chen, không nuốt.
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('s'));
     assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
-
-    // Không gửi action mới (relinquish + forward, không gọi thuc_thi).
-    assert_eq!(host.lich_su_hanh_dong.len(), so_action_truoc);
-    // Văn bản host không bị xóa.
-    assert_eq!(host.van_ban, "a");
-    // Runtime đã relinquish: da_hien_thi rỗng, không sở hữu suffix cũ.
     assert_eq!(phien.da_hien_thi(), "");
-    assert!(phien.dang_rong());
 
-    // Sau reset, sự kiện kế tiếp không bị nuốt: đi vào composition mới (Chen).
+    // 'd' → Passthrough tiếp.
     let ket_qua = phien.xu_ly(&mut host, &SuKienNhap::KyTu('d'));
-    assert_eq!(ket_qua, KetQuaXuLy::DaApDung);
-    assert_eq!(host.van_ban, "ad");
-    assert_eq!(phien.da_hien_thi(), "d");
+    assert_eq!(ket_qua, KetQuaXuLy::ChuyenTiep);
+    assert_eq!(phien.da_hien_thi(), "");
 }
 
 #[test]
 fn surrounding_none_context_khac_khong_anh_huong() {
-    // Context A: None → ThayThe bị chặn. Context B: Some → ThayThe bình thường.
-    // A không bị B ảnh hưởng và ngược lại.
+    // Context A: không surrounding + không preedit → Passthrough. Context B:
+    // có surrounding → VerifiedReplace (Chen/ThayThe). A không bị B ảnh hưởng.
     let mut phien_a = PhienNhap::moi(ContextId(1));
     let mut host_a = HostMoPhong::moi(ContextId(1));
     host_a.cung_cap_surrounding = false;
+    host_a.co_surrounding = false;
+    host_a.co_preedit = false;
 
     let mut phien_b = PhienNhap::moi(ContextId(2));
     let mut host_b = HostMoPhong::moi(ContextId(2));
     // host_b.cung_cap_surrounding = true (mặc định)
 
-    // A: 'a' → Chen, 's' → bị chặn (ThayThe, surrounding=None).
+    // A: 'a' → Passthrough, 's' → Passthrough.
     phien_a.xu_ly(&mut host_a, &SuKienNhap::KyTu('a'));
     phien_a.xu_ly(&mut host_a, &SuKienNhap::KyTu('s'));
-    assert_eq!(host_a.van_ban, "a");
+    assert_eq!(host_a.van_ban, "");
     assert_eq!(phien_a.da_hien_thi(), "");
 
     // B: 'a' → Chen, 's' → ThayThe (surrounding khớp).
@@ -321,6 +311,6 @@ fn surrounding_none_context_khac_khong_anh_huong() {
     assert_eq!(phien_b.da_hien_thi(), "á");
 
     // A không bị B ảnh hưởng.
-    assert_eq!(host_a.van_ban, "a");
+    assert_eq!(host_a.van_ban, "");
     assert_eq!(phien_a.da_hien_thi(), "");
 }

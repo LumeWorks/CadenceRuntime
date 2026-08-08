@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Copyright (c) 2026 Lê Hùng Quang Minh
 
-//! Phiên nhập - state machine tối thiểu, zero-preedit, per-context.
+//! Phiên nhập - state machine tối thiểu, per-context, ba đường output.
 //!
 //! Mỗi ô nhập liệu có một [`PhienNhap`] riêng; không có state global. Runtime
 //! nhận [`SuKienNhap`] trung lập (không biết keycode nền tảng), đưa vào Cadence
@@ -9,6 +9,15 @@
 //! với snapshot mới qua [`KeHoachSua`](crate::sua::KeHoachSua), rồi gửi đúng
 //! một [`HanhDong`](crate::HanhDong) tới host. State Cadence mới chỉ được chấp
 //! nhận khi host xác nhận [`DaPhat`](crate::KetQuaHost::DaPhat).
+//!
+//! Phase 3C có ba đường output (xem [`DuongXuat`]):
+//! * **VerifiedReplace** — commit text trung gian vào document mỗi phím, verify
+//!   surrounding. Dùng khi surrounding hợp lệ.
+//! * **PlainComposition** — cập nhật client preedit (NO decoration) thay vì
+//!   commit. Text chỉ commit tại boundary. Dùng khi surrounding không hợp lệ
+//!   nhưng client hỗ trợ preedit.
+//! * **Passthrough** — forward phím gốc (sensitive context, hoặc không route
+//!   khả dụng).
 
 use crate::cadence::{KetQuaCadence, PhienCadence};
 use crate::host::{BoiCanhNhap, ContextId, HanhDong, Host, KetQuaHost};
@@ -42,6 +51,27 @@ pub(crate) enum TrangThaiPhien {
     DangGo,
     /// Runtime không còn chắc ứng dụng hiển thị đúng nội dung dự kiến.
     MatDongBo,
+}
+
+/// Đường output của composition hiện tại (route lock).
+///
+/// Một composition giữ đường từ khi bắt đầu đến khi boundary/reset. Route
+/// selection chỉ xảy ra khi composition mới (`duong == None`).
+///
+/// * [`DuongXuat::VerifiedReplace`] — commit text trung gian vào document mỗi
+///   phím, verify surrounding. Dùng khi surrounding hợp lệ.
+/// * [`DuongXuat::PlainComposition`] — cập nhật client preedit (NO decoration)
+///   thay vì commit. Text chỉ commit tại boundary. Dùng khi surrounding không
+///   hợp lệ nhưng client hỗ trợ preedit.
+///
+/// Passthrough không phải route composition — runtime không sở hữu text, chỉ
+/// forward phím gốc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DuongXuat {
+    /// Commit text trung gian vào document mỗi phím (Route 1, VerifiedReplace).
+    VerifiedReplace,
+    /// Cập nhật client preedit, commit tại boundary (Route 2, PlainComposition).
+    PlainComposition,
 }
 
 /// Sự kiện xây composition đã được host chấp nhận - để replay khi quay lui.
@@ -113,14 +143,19 @@ pub struct PhienNhap {
     /// Boundary Cadence.
     cadence: PhienCadence,
     /// Văn bản runtime tin ứng dụng đang hiển thị do composition này tạo.
+    ///
+    /// Với VerifiedReplace: text đã commit vào document. Với PlainComposition:
+    /// text nằm trong client preedit (chưa commit).
     da_hien_thi: String,
     /// Thế hệ focus đã adopt; `None` đến khi nhận focus đầu tiên.
     the_he_focus: Option<u64>,
     /// Trạng thái phiên.
     trang_thai: TrangThaiPhien,
+    /// Đường output hiện tại (route lock). `None` khi composition rỗng.
+    duong: Option<DuongXuat>,
     /// Lịch sử sự kiện đã chấp nhận, để replay khi host từ chối.
     lich_su: Vec<SuKienNhapDaChapNhan>,
-    /// Tổng số operation Cadence (them_ky_tu/xoa_lui) kể cả replay. Chỉ dùng
+    /// Tổng số operations Cadence (them_ky_tu/xoa_lui) kể cả replay. Chỉ dùng
     /// cho test đo chi phí; 0 trong production build.
     #[cfg(test)]
     so_op_cadence: usize,
@@ -136,6 +171,7 @@ impl PhienNhap {
             da_hien_thi: String::new(),
             the_he_focus: None,
             trang_thai: TrangThaiPhien::Rong,
+            duong: None,
             lich_su: Vec::new(),
             #[cfg(test)]
             so_op_cadence: 0,
@@ -158,6 +194,18 @@ impl PhienNhap {
     #[must_use]
     pub fn da_hien_thi(&self) -> &str {
         &self.da_hien_thi
+    }
+
+    /// Trả đường output hiện tại cho diagnostic. `"native"` = VerifiedReplace,
+    /// `"plain_composition"` = PlainComposition, `"passthrough"` = không route.
+    #[cfg(feature = "diag")]
+    #[must_use]
+    pub(crate) fn duong_hien_tai(&self) -> &'static str {
+        match self.duong {
+            None => "passthrough",
+            Some(DuongXuat::VerifiedReplace) => "native",
+            Some(DuongXuat::PlainComposition) => "plain_composition",
+        }
     }
 
     /// Đặt lại phiên: relinquish composition (đặt lại Cadence, xóa ownership
@@ -184,8 +232,8 @@ impl PhienNhap {
     /// Xử lý một sự kiện nhập qua host, trả kết quả.
     ///
     /// Đây là entry point duy nhất. Một sự kiện tạo tối đa một lời gọi
-    /// `host.thuc_thi` (bất biến zero-preedit: một sự kiện - một action logic).
-    /// Xem [`KetQuaXuLy`] cho contract "tối đa một lần xuất hiện" và hướng dẫn
+    /// `host.thuc_thi` (bất biến: một sự kiện - một action logic). Xem
+    /// [`KetQuaXuLy`] cho contract "tối đa một lần xuất hiện" và hướng dẫn
     /// adapter khi nào chuyển tiếp phím gốc.
     pub fn xu_ly<H: Host>(&mut self, host: &mut H, su_kien: &SuKienNhap) -> KetQuaXuLy {
         let boi_canh = host.boi_canh();
@@ -195,19 +243,19 @@ impl PhienNhap {
             Some(g) if g == boi_canh.the_he_focus => {}
             Some(_) => {
                 // Focus regenerated: không xóa dựa suffix cũ.
-                self.relinquish();
+                self.relinquish_voi_host(host);
                 self.the_he_focus = Some(boi_canh.the_he_focus);
                 return KetQuaXuLy::ChuyenTiep;
             }
         }
         // 2. Mất focus → relinquish + forward.
         if !boi_canh.dang_co_focus {
-            self.relinquish();
+            self.relinquish_voi_host(host);
             return KetQuaXuLy::ChuyenTiep;
         }
         // 3. Context lệch → relinquish + forward.
         if boi_canh.context_id != self.context_id {
-            self.relinquish();
+            self.relinquish_voi_host(host);
             return KetQuaXuLy::ChuyenTiep;
         }
         // 4. MatDongBo: phục hồi an toàn khi da_hien_thi rỗng (không suffix cũ).
@@ -216,7 +264,7 @@ impl PhienNhap {
                 self.trang_thai = TrangThaiPhien::Rong;
             } else {
                 // Vẫn có suffix cũ không khớp thực tế - không delete.
-                self.relinquish();
+                self.relinquish_voi_host(host);
                 return KetQuaXuLy::ChuyenTiep;
             }
         }
@@ -225,18 +273,15 @@ impl PhienNhap {
             SuKienNhap::KyTu(c) => self.xu_ly_xay(host, &boi_canh, SuKienXay::KyTu(*c)),
             SuKienNhap::XoaLui => self.xu_ly_xay(host, &boi_canh, SuKienXay::XoaLui),
             SuKienNhap::RanhGioiTu(c) => self.xu_ly_ranh_gioi(host, *c),
-            SuKienNhap::DiChuyenConTro => {
-                self.relinquish();
-                KetQuaXuLy::ChuyenTiep
-            }
-            SuKienNhap::DatLai => {
-                self.relinquish();
-                KetQuaXuLy::ChuyenTiep
-            }
+            SuKienNhap::DiChuyenConTro | SuKienNhap::DatLai => self.relinquish_voi_host(host),
         }
     }
 
     /// Xử lý sự kiện xây composition (KyTu hoặc XoaLui).
+    ///
+    /// Route selection xảy ra khi composition mới (`duong == None`). Sau khi
+    /// chọn, route bị khóa đến boundary/reset. VerifiedReplace verify
+    /// surrounding; PlainComposition cập nhật client preedit (no decoration).
     fn xu_ly_xay<H: Host>(
         &mut self,
         host: &mut H,
@@ -245,7 +290,13 @@ impl PhienNhap {
     ) -> KetQuaXuLy {
         // Giới hạn lịch sử: nếu quá dài, relinquish để chống input độc hại tạo
         // composition dài không thực tế khiến replay O(n) đắt. Composition đã
-        // commit trong host; runtime chỉ ngừng theo dõi suffix.
+        // commit/preedit trong host; runtime chỉ ngừng theo dõi.
+        //
+        // Dùng relinquish() nội bộ (không gọi host.thuc_thi) — nếu dùng
+        // relinquish_voi_host() sẽ gọi thuc_thi cho XoaSoanThao, rồi phím này
+        // tiếp tục gọi thuc_thi nữa → hai thuc_thi cho một sự kiện (vi phạm
+        // bất biến). Preedit stale trên client là edge case (256+ events);
+        // phím kế CapNhatSoanThao sẽ overwrite, hoặc lifecycle clear.
         if self.lich_su.len() >= GIOI_HAN_LICH_SU {
             self.relinquish();
         }
@@ -264,26 +315,46 @@ impl PhienNhap {
             return KetQuaXuLy::ChuyenTiep;
         }
         let noi_dung_moi = self.cadence.ban_chup().noi_dung;
-        // Verify-before-mutate: khi runtime đang sở hữu suffix (da_hien_thi
-        // không rỗng), mọi action tiếp tục composition (cả Chen lẫn ThayThe)
-        // đều phải verify surrounding. Chen khi đang sở hữu suffix vẫn chèn
-        // vào vị trí cursor — nếu cursor lệch (surrounding None/mismatch), chèn
-        // sai vị trí rồi đầu độc state, phím sau mới gây lỗi nặng. Khi
-        // da_hien_thi rỗng (composition mới), phím đầu tiên là Chen thuần, an
-        // toàn không cần surrounding.
-        if !self.da_hien_thi.is_empty() && !self.khop_surrounding(boi_canh) {
-            self.relinquish();
-            return KetQuaXuLy::ChuyenTiep;
+        // Route selection khi composition mới (duong == None).
+        if self.duong.is_none() {
+            self.duong = self.chon_duong(boi_canh);
         }
-        // Tính kế hoạch sửa từ da_hien_thi sang rendered mới.
-        let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
-        // Chọn action logic duy nhất (zero-preedit: chỉ Chen/ThayThe/ChuyenTiep).
-        let hanh_dong = if ke.la_rong() {
-            HanhDong::ChuyenTiep
-        } else if ke.la_chen() {
-            HanhDong::Chen(ke.chen.clone())
-        } else {
-            HanhDong::ThayThe(ke)
+        // Chọn action logic theo route.
+        let hanh_dong = match self.duong {
+            None => {
+                // Passthrough: không route khả dụng (sensitive, hoặc không
+                // surrounding + không preedit). Rollback Cadence, forward raw key.
+                self.relinquish();
+                return KetQuaXuLy::ChuyenTiep;
+            }
+            Some(DuongXuat::VerifiedReplace) => {
+                // Verify-before-mutate: khi runtime đang sở hữu suffix
+                // (da_hien_thi không rỗng), mọi action tiếp tục composition đều
+                // phải verify surrounding. Khi da_hien_thi rỗng (composition mới),
+                // phím đầu tiên an toàn không cần surrounding.
+                if !self.da_hien_thi.is_empty() && !self.khop_surrounding(boi_canh) {
+                    self.relinquish();
+                    return KetQuaXuLy::ChuyenTiep;
+                }
+                let ke = KeHoachSua::tinh(&noi_dung_cu, &noi_dung_moi);
+                if ke.la_rong() {
+                    HanhDong::ChuyenTiep
+                } else if ke.la_chen() {
+                    HanhDong::Chen(ke.chen.clone())
+                } else {
+                    HanhDong::ThayThe(ke)
+                }
+            }
+            Some(DuongXuat::PlainComposition) => {
+                // PlainComposition: cập nhật client preedit (NO decoration).
+                // Không verify surrounding — text nằm trong client composition,
+                // chưa vào document. Không cần KeHoachSua (không diff document).
+                if noi_dung_moi.is_empty() {
+                    HanhDong::XoaSoanThao
+                } else {
+                    HanhDong::CapNhatSoanThao(noi_dung_moi.clone())
+                }
+            }
         };
         // Gửi tới host - một sự kiện tối đa một lời gọi thuc_thi.
         let ket_qua_host = host.thuc_thi(&hanh_dong);
@@ -322,12 +393,24 @@ impl PhienNhap {
         }
     }
 
-    /// Xử lý ranh giới từ: relinquish composition, chèn ký tự ranh giới.
+    /// Xử lý ranh giới từ: kết thúc composition, chèn ký tự ranh giới.
     ///
-    /// Composition hiện tại (nếu có) đã hiển thị qua các `ThayThe` trước đó; app
-    /// đã sở hữu nó. Runtime chỉ cần chèn ký tự ranh giới rồi relinquish.
+    /// VerifiedReplace: composition đã trong document, chỉ chèn boundary char.
+    /// PlainComposition: commit composition + boundary char, clear preedit.
+    /// None (composition rỗng): chèn boundary char (Chen, không Passthrough —
+    /// boundary char như space/punctuation luôn cần vào document).
     fn xu_ly_ranh_gioi<H: Host>(&mut self, host: &mut H, ky_tu: char) -> KetQuaXuLy {
-        let hanh_dong = HanhDong::Chen(ky_tu.to_string());
+        let hanh_dong = match self.duong {
+            Some(DuongXuat::PlainComposition) if !self.da_hien_thi.is_empty() => {
+                // Commit composition text + boundary char, clear preedit.
+                let mut text = self.da_hien_thi.clone();
+                text.push(ky_tu);
+                HanhDong::KetThucSoanThao(text)
+            }
+            // VerifiedReplace (composition đã commit), PlainComposition rỗng,
+            // hoặc None (composition rỗng, không route): chỉ chèn boundary char.
+            _ => HanhDong::Chen(ky_tu.to_string()),
+        };
         let ket_qua_host = host.thuc_thi(&hanh_dong);
         match ket_qua_host {
             KetQuaHost::DaPhat => {
@@ -346,6 +429,35 @@ impl PhienNhap {
         }
     }
 
+    /// Chọn đường output khi composition mới (`duong == None`).
+    ///
+    /// Thứ tự ưu tiên: sensitive → Passthrough; surrounding text hợp lệ
+    /// (`van_ban_truoc_con_tro.is_some()`) → VerifiedReplace; preedit có
+    /// → PlainComposition; else → Passthrough.
+    ///
+    /// Route selection dùng `van_ban_truoc_con_tro.is_some()` (trạng thái
+    /// surrounding hiện tại), KHÔNG dùng `co_surrounding` (capability): nhiều
+    /// app (LibreOffice, Konsole) có `sur_cap=1` nhưng `sur_valid=0` mọi phím —
+    /// nếu chọn VerifiedReplace dựa capability, phím 2 bị chặn (verify fail)
+    /// và app không gõ được. Dựa trạng thái hiện tại: sur_valid=0 →
+    /// PlainComposition (dùng preedit) → app gõ được.
+    ///
+    /// Kate/Qt: sur_valid=0 phím đầu → PlainComposition (route lock). Phím 2
+    /// sur_valid=1 nhưng route đã khóa → tiếp tục PlainComposition. Kate vẫn
+    /// gõ được (text trong preedit, commit tại boundary).
+    fn chon_duong(&self, boi_canh: &BoiCanhNhap) -> Option<DuongXuat> {
+        if boi_canh.co_sensitive {
+            return None;
+        }
+        if boi_canh.van_ban_truoc_con_tro.is_some() {
+            return Some(DuongXuat::VerifiedReplace);
+        }
+        if boi_canh.co_preedit {
+            return Some(DuongXuat::PlainComposition);
+        }
+        None
+    }
+
     /// Kiểm tra surrounding text trước con trỏ kết thúc bằng `da_hien_thi`.
     ///
     /// Trả `true` khi host cung cấp surrounding (`Some`) và nó kết thúc bằng
@@ -353,9 +465,8 @@ impl PhienNhap {
     /// con trỏ. Trả `false` khi surrounding `None` (không thể verify) hoặc khi
     /// surrounding không khớp (text đã thay đổi ngoài runtime).
     ///
-    /// Phase 1 chỉ cho phép destructive replace (ThayThe) khi host cung cấp
-    /// surrounding text đủ để verify. Khi `None`, runtime không được đoán text
-    /// đã commit có còn ở đúng vị trí không.
+    /// Chỉ dùng cho VerifiedReplace. PlainComposition không cần verify (text
+    /// nằm trong client preedit, không trong document).
     fn khop_surrounding(&self, boi_canh: &BoiCanhNhap) -> bool {
         match &boi_canh.van_ban_truoc_con_tro {
             Some(vb) => vb.ends_with(&self.da_hien_thi),
@@ -363,12 +474,37 @@ impl PhienNhap {
         }
     }
 
-    /// Relinquish composition: đặt lại Cadence, xóa ownership, về Rong.
+    /// Relinquish composition qua host: clear client preedit nếu đang
+    /// PlainComposition với text, rồi relinquish internal. Dùng cho
+    /// DatLai/DiChuyenConTro/focus-out khi cần clear preedit trên client.
+    fn relinquish_voi_host<H: Host>(&mut self, host: &mut H) -> KetQuaXuLy {
+        if matches!(self.duong, Some(DuongXuat::PlainComposition)) && !self.da_hien_thi.is_empty() {
+            // PlainComposition có text trong preedit — cần clear qua host.
+            let ket_qua = host.thuc_thi(&HanhDong::XoaSoanThao);
+            match ket_qua {
+                KetQuaHost::DaPhat | KetQuaHost::KhongPhat => {
+                    self.relinquish();
+                    KetQuaXuLy::ChuyenTiep
+                }
+                KetQuaHost::KhongChac => {
+                    self.relinquish();
+                    self.trang_thai = TrangThaiPhien::MatDongBo;
+                    KetQuaXuLy::MatDongBo
+                }
+            }
+        } else {
+            self.relinquish();
+            KetQuaXuLy::ChuyenTiep
+        }
+    }
+
+    /// Relinquish composition: đặt lại Cadence, xóa ownership, về Rong, clear route.
     fn relinquish(&mut self) {
         self.cadence.dat_lai();
         self.da_hien_thi.clear();
         self.lich_su.clear();
         self.trang_thai = TrangThaiPhien::Rong;
+        self.duong = None;
     }
 }
 
@@ -447,6 +583,9 @@ mod test_noi_bo {
                 the_he_focus: 1,
                 dang_co_focus: true,
                 van_ban_truoc_con_tro: Some(self.van_ban.clone()),
+                co_surrounding: true,
+                co_preedit: false,
+                co_sensitive: false,
             }
         }
         fn thuc_thi(&mut self, hanh_dong: &HanhDong) -> KetQuaHost {
@@ -458,6 +597,10 @@ mod test_noi_bo {
                     let bat_dau = len.saturating_sub(xoa);
                     self.van_ban.replace_range(bat_dau..len, &ke.chen);
                 }
+                // Host đơn giản không track preedit; các action PlainComposition
+                // là no-op (host này có co_preedit=false, không dùng route này).
+                HanhDong::CapNhatSoanThao(_) | HanhDong::XoaSoanThao => {}
+                HanhDong::KetThucSoanThao(s) => self.van_ban.push_str(s),
                 HanhDong::ChuyenTiep => {}
             }
             self.ket_qua

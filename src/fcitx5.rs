@@ -16,6 +16,7 @@
 
 use crate::host::{BoiCanhNhap, ContextId};
 use crate::phien::SuKienNhap;
+use crate::tuong_thich::co_cap;
 
 /// Lát cắt byte UTF-8 không sở hữu (khớp `CanTypeSlice` trong C ABI).
 #[repr(C)]
@@ -120,6 +121,15 @@ pub struct CanTypeHostBang {
     pub chen: Option<extern "C" fn(*mut core::ffi::c_void, *const u8, usize) -> i32>,
     /// Callback xóa `xoa_ky_tu` ký tự trước con trỏ rồi commit.
     pub thay_the: Option<extern "C" fn(*mut core::ffi::c_void, u32, *const u8, usize) -> i32>,
+    /// Callback cập nhật client preedit (PlainComposition). Text gửi với NO
+    /// formatting flags (zero visible decoration). Trả 0=DaPhat, 1=KhongPhat,
+    /// 2=KhongChac.
+    pub cap_nhat_soan_thao: Option<extern "C" fn(*mut core::ffi::c_void, *const u8, usize) -> i32>,
+    /// Callback kết thúc composition: commit text vào document rồi clear client
+    /// preedit (PlainComposition). Trả 0/1/2.
+    pub ket_thuc_soan_thao: Option<extern "C" fn(*mut core::ffi::c_void, *const u8, usize) -> i32>,
+    /// Callback xóa client preedit (PlainComposition). Trả 0/1/2.
+    pub xoa_soan_thao: Option<extern "C" fn(*mut core::ffi::c_void) -> i32>,
 }
 
 /// Phím dạng Rust-friendly (không con trỏ). [`ffi`](crate::ffi) chuyển từ
@@ -231,11 +241,17 @@ pub(crate) fn chuyen_boi_canh(snapshot: &CanTypeContextSnapshot, text: &str) -> 
     } else {
         None
     };
+    let co_surrounding = (snapshot.capability & co_cap::SURROUNDING) != 0;
+    let co_preedit = (snapshot.capability & co_cap::PREDIT) != 0;
+    let co_sensitive = (snapshot.capability & (co_cap::PASSWORD | co_cap::SENSITIVE)) != 0;
     BoiCanhNhap {
         context_id: ContextId(snapshot.context_id),
         the_he_focus: snapshot.focus_generation,
         dang_co_focus: snapshot.has_focus != 0,
         van_ban_truoc_con_tro,
+        co_surrounding,
+        co_preedit,
+        co_sensitive,
     }
 }
 

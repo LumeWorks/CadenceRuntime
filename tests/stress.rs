@@ -60,7 +60,12 @@ fn stress_khong_panic_khong_leak_khong_vuot_ownership() {
                         da_hien_thi_len
                     );
                 }
-                HanhDong::ChuyenTiep => {}
+                // Host có surrounding → VerifiedReplace. Các action
+                // PlainComposition không xuất hiện (route lock).
+                HanhDong::CapNhatSoanThao(_)
+                | HanhDong::KetThucSoanThao(_)
+                | HanhDong::XoaSoanThao
+                | HanhDong::ChuyenTiep => {}
             }
             tong_action = so_action;
         }
